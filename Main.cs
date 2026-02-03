@@ -24,6 +24,7 @@ namespace HondaSensorChecker
         private int _sensorCounter = 0;
         private int _sensorLimit = 0;
         private int _runtimeSupplierBoxRemaining = 0;
+        private bool _suppressQtyToSendChange = false;
 
         // SupplierBox change control
         private bool _forcingSupplierBoxChange = false;
@@ -281,6 +282,9 @@ namespace HondaSensorChecker
 
         private void cbWorkOrderQtyToSend_SelectedValueChanged(object sender, EventArgs e)
         {
+            if (_suppressQtyToSendChange)
+                return;
+
             if (cbWorkOrderQtyToSend.SelectedItem == null) return;
 
             _sensorLimit = Convert.ToInt32(cbWorkOrderQtyToSend.SelectedItem);
@@ -1124,7 +1128,9 @@ namespace HondaSensorChecker
 
             txtWorkOrderNumber.Text = $"O{workOrder.WorkOrderNumber}";
             txtWorkOrderMaterialNumber.Text = $"P{product.EndPartNumber}";
+            _suppressQtyToSendChange = true;
             cbWorkOrderQtyToSend.Text = _sensorLimit.ToString();
+            _suppressQtyToSendChange = false;
 
             txtWorkOrderNumber.Enabled = false;
             txtWorkOrderMaterialNumber.Enabled = false;
