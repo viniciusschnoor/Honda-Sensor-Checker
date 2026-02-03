@@ -1,5 +1,7 @@
 ﻿using HondaSensorChecker.Data.UnitOfWork;
 using HondaSensorChecker.Models;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace HondaSensorChecker
@@ -12,10 +14,7 @@ namespace HondaSensorChecker
         // IDs only (avoid cross-context tracked entities)
         private readonly int _productId;
         private readonly int _workOrderId;
-
-        // New sensors (not tracked yet) - IMPORTANT: may contain multiple SupplierBoxId values
-        private readonly List<Sensor> _workedSensors;
-        private readonly int _processedQty;
+        private readonly int _zfBoxId;
 
         private readonly ZfBox _zfBox;
 
@@ -23,10 +22,8 @@ namespace HondaSensorChecker
             IUnitOfWork unitOfWork,
             int operatorId,
             SapWorkOrder sapWorkOrder,
-            SupplierBox supplierBox,
             Product product,
-            int qty,
-            List<Sensor> sensors)
+            ZfBox zfBox)
         {
             InitializeComponent();
 
@@ -35,17 +32,8 @@ namespace HondaSensorChecker
 
             _workOrderId = sapWorkOrder?.SapWorkOrderId ?? 0;
             _productId = product?.ProductId ?? 0;
-
-            _workedSensors = sensors ?? new List<Sensor>();
-            _processedQty = qty;
-
-            _zfBox = new ZfBox
-            {
-                QtyToSend = _processedQty,
-                ProductId = _productId,
-                SapWorkOrderId = _workOrderId,
-                OperatorId = _operatorId
-            };
+            _zfBoxId = zfBox?.ZfBoxId ?? 0;
+            _zfBox = zfBox ?? new ZfBox();
         }
 
         private void txtUniqueNumber_KeyPress(object sender, KeyPressEventArgs e)
@@ -194,40 +182,77 @@ namespace HondaSensorChecker
                 return false;
             }
 
-            if (_workedSensors.Count == 0)
+            if (_zfBoxId <= 0)
             {
-                MessageBox.Show("Nenhum sensor para salvar.", "ETIQUETA FINAL",
+                MessageBox.Show("Caixa em andamento não encontrada.", "ETIQUETA FINAL",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
 
-            if (!_unitOfWork.ZfBoxes.Add(_zfBox, out var error))
+            var zfBoxDb = _unitOfWork.ZfBoxes.GetById(_zfBoxId);
+            if (zfBoxDb == null)
+            {
+                MessageBox.Show("Caixa não encontrada no banco.", "ETIQUETA FINAL",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+
+            var sensorsDb = _unitOfWork.Sensors
+                .Find(s => s.ZfBoxId == _zfBoxId && s.InProgress)
+                .ToList();
+
+            if (sensorsDb.Count == 0)
+            {
+                MessageBox.Show("Nenhum sensor em andamento para finalizar.", "ETIQUETA FINAL",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            zfBoxDb.UniqueNumber = _zfBox.UniqueNumber;
+            zfBoxDb.Batch = _zfBox.Batch;
+            zfBoxDb.InProgress = false;
+
+            if (!_unitOfWork.ZfBoxes.Edit(zfBoxDb, out var error))
             {
                 MessageBox.Show(error, "Database error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
 
-            foreach (var sensor in _workedSensors)
+            var supplierBoxCounts = new Dictionary<int, int>();
+
+            foreach (var sensor in sensorsDb)
             {
-                sensor.SerialNumber = (sensor.SerialNumber ?? string.Empty).Trim().ToUpper();
+                sensor.InProgress = false;
 
-                sensor.ProductId = _productId;
-                sensor.SapWorkOrderId = _workOrderId;
-                sensor.OperatorId = _operatorId;
+                if (!_unitOfWork.Sensors.Edit(sensor, out error))
+                {
+                    MessageBox.Show(error, "Database error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
 
-                // NÃO sobrescrever SupplierBoxId: pode ter mudado no meio do processo.
-                sensor.ZfBox = _zfBox;
+                if (!supplierBoxCounts.ContainsKey(sensor.SupplierBoxId))
+                    supplierBoxCounts[sensor.SupplierBoxId] = 0;
 
-                if (!_unitOfWork.Sensors.Add(sensor, out error))
+                supplierBoxCounts[sensor.SupplierBoxId] += 1;
+            }
+
+            foreach (var kvp in supplierBoxCounts)
+            {
+                var sbDb = _unitOfWork.SupplierBoxes.GetById(kvp.Key);
+                if (sbDb == null)
+                    continue;
+
+                sbDb.QtyRemaining = Math.Max(0, sbDb.QtyRemaining - kvp.Value);
+
+                if (!_unitOfWork.SupplierBoxes.Edit(sbDb, out error))
                 {
                     MessageBox.Show(error, "Database error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
             }
 
-            var supplierBoxesUsed = _workedSensors
-                .Select(s => s.SupplierBoxId)
-                .Distinct()
+            var supplierBoxesUsed = supplierBoxCounts
+                .Keys
                 .Select(id => _unitOfWork.SupplierBoxes.GetById(id)?.UniqueNumber ?? id.ToString())
                 .ToList();
 
@@ -242,7 +267,7 @@ namespace HondaSensorChecker
                     $"WorkOrderNumber={workOrderNumber}, " +
                     $"UniqueNumber={_zfBox.UniqueNumber}, " +
                     $"Batch={_zfBox.Batch}, " +
-                    $"Sensors={_workedSensors.Count}, " +
+                    $"Sensors={sensorsDb.Count}, " +
                     $"SupplierBoxesUsed={string.Join(",", supplierBoxesUsed)}"
             }, out _);
 

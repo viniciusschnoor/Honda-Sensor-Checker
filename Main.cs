@@ -18,10 +18,12 @@ namespace HondaSensorChecker
         private Product? _currentProduct;
         private SapWorkOrder? _currentWorkOrder;
         private SupplierBox? _currentSupplierBox;
+        private ZfBox? _currentZfBox;
 
         private readonly List<Sensor> _scannedSensors = new();
         private int _sensorCounter = 0;
         private int _sensorLimit = 0;
+        private int _runtimeSupplierBoxRemaining = 0;
 
         // SupplierBox change control
         private bool _forcingSupplierBoxChange = false;
@@ -67,6 +69,8 @@ namespace HondaSensorChecker
 
             txtWorkOrderNumber.Enabled = true;
             txtWorkOrderNumber.Focus();
+
+            UpdateContinueProcessButton();
         }
 
         private void CleanForm()
@@ -74,16 +78,19 @@ namespace HondaSensorChecker
             _currentProduct = null;
             _currentWorkOrder = null;
             _currentSupplierBox = null;
+            _currentZfBox = null;
 
             _scannedSensors.Clear();
             _sensorCounter = 0;
             _sensorLimit = 0;
+            _runtimeSupplierBoxRemaining = 0;
 
             _forcingSupplierBoxChange = false;
             _previousSupplierBoxId = 0;
             _previousSupplierBoxUniqueNumber = string.Empty;
             _allowSupplierBoxOverdraw = false;
             _overdrawLogged = false;
+            _runtimeSupplierBoxRemaining = 0;
 
             lblComponentQty.Text = "000/000";
 
@@ -121,6 +128,8 @@ namespace HondaSensorChecker
             lblCheckResult.Text = "LEIA A WORK-ORDER";
 
             txtWorkOrderNumber.Focus();
+
+            UpdateContinueProcessButton();
         }
 
         // ----------------------------
@@ -191,6 +200,7 @@ namespace HondaSensorChecker
 
                 cbWorkOrderQtyToSend.Enabled = true;
                 cbWorkOrderQtyToSend.Focus();
+                UpdateContinueProcessButton();
                 return;
             }
 
@@ -200,6 +210,7 @@ namespace HondaSensorChecker
             txtWorkOrderNumber.Enabled = false;
             txtWorkOrderMaterialNumber.Enabled = true;
             txtWorkOrderMaterialNumber.Focus();
+            UpdateContinueProcessButton();
         }
 
         private void txtWorkOrderMaterialNumber_KeyPress(object sender, KeyPressEventArgs e)
@@ -379,9 +390,10 @@ namespace HondaSensorChecker
                 _currentProduct = supplierProduct;
                 _allowSupplierBoxOverdraw = false;
                 _overdrawLogged = false;
+                _runtimeSupplierBoxRemaining = existingSupplierBox.QtyRemaining;
 
                 txtStartPartNumber.Text = $"P{supplierProduct.StartPartNumber}";
-                txtQtySupplied.Text = $"Q{existingSupplierBox.QtyRemaining}";
+                txtQtySupplied.Text = $"Q{_runtimeSupplierBoxRemaining}";
 
                 txtLogisticUniqueNumber.Enabled = false;
 
@@ -501,7 +513,8 @@ namespace HondaSensorChecker
                 }
 
                 // atualiza UI
-                txtQtySupplied.Text = $"Q{_currentSupplierBox.QtyRemaining}";
+                _runtimeSupplierBoxRemaining = _currentSupplierBox.QtyRemaining;
+                txtQtySupplied.Text = $"Q{_runtimeSupplierBoxRemaining}";
             }
 
             txtQtySupplied.Enabled = false;
@@ -543,7 +556,8 @@ namespace HondaSensorChecker
 
             // Atualiza memória/UI
             _currentSupplierBox.QtyRemaining = sbDb.QtyRemaining;
-            txtQtySupplied.Text = $"Q{sbDb.QtyRemaining}";
+            _runtimeSupplierBoxRemaining = sbDb.QtyRemaining;
+            txtQtySupplied.Text = $"Q{_runtimeSupplierBoxRemaining}";
 
             if (!EnsureSupplierBoxHasAvailableStock(sbDb, reason: "zero_before_start"))
                 return;
@@ -577,6 +591,38 @@ namespace HondaSensorChecker
                 _previousSupplierBoxUniqueNumber = string.Empty;
                 _allowSupplierBoxOverdraw = false;
                 _overdrawLogged = false;
+            }
+
+            if (_currentZfBox == null)
+            {
+                var newZfBox = new ZfBox
+                {
+                    QtyToSend = _sensorLimit,
+                    ProductId = _currentProduct.ProductId,
+                    SapWorkOrderId = _currentWorkOrder.SapWorkOrderId,
+                    OperatorId = _currentOperator!.OperatorId,
+                    InProgress = true
+                };
+
+                if (!_unitOfWork.ZfBoxes.Add(newZfBox, out var addError))
+                {
+                    MessageBox.Show(addError, "Database error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                if (!_unitOfWork.Commit(out var commitError))
+                {
+                    MessageBox.Show(commitError, "Commit error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                _currentZfBox = newZfBox;
+            }
+            else if (!_currentZfBox.InProgress)
+            {
+                MessageBox.Show("A caixa selecionada já foi finalizada.", "ZF BOX",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
             }
 
             // Volta ao fluxo normal: trava logistic label e libera scan
@@ -676,6 +722,7 @@ namespace HondaSensorChecker
             }
 
             _currentSupplierBox.QtyRemaining = 0;
+            _runtimeSupplierBoxRemaining = 0;
             txtQtySupplied.Text = "Q0";
 
             AddLogSafe(
@@ -699,31 +746,18 @@ namespace HondaSensorChecker
                 return false;
             }
 
-            if (sbDb.QtyRemaining <= 0)
+            if (_runtimeSupplierBoxRemaining <= 0)
             {
                 if (!EnsureSupplierBoxHasAvailableStock(sbDb, reason: "zero_mid_process"))
                     return false;
 
-                if (sbDb.QtyRemaining <= 0)
+                if (_runtimeSupplierBoxRemaining <= 0)
                     return true;
             }
 
-            sbDb.QtyRemaining -= 1;
-
-            if (!_unitOfWork.SupplierBoxes.Edit(sbDb, out var editError))
-            {
-                MessageBox.Show(editError, "Database error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-
-            if (!_unitOfWork.Commit(out var commitError))
-            {
-                MessageBox.Show(commitError, "Commit error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-
-            _currentSupplierBox.QtyRemaining = sbDb.QtyRemaining;
-            txtQtySupplied.Text = $"Q{sbDb.QtyRemaining}";
+            _runtimeSupplierBoxRemaining -= 1;
+            _currentSupplierBox.QtyRemaining = _runtimeSupplierBoxRemaining;
+            txtQtySupplied.Text = $"Q{_runtimeSupplierBoxRemaining}";
 
             return true;
         }
@@ -796,6 +830,11 @@ namespace HondaSensorChecker
                 ShowWarningAndReset("PROCESS CONTEXT NOT FOUND", "SENSOR");
                 return;
             }
+            if (_currentZfBox == null)
+            {
+                ShowWarningAndReset("ZF BOX CONTEXT NOT FOUND", "SENSOR");
+                return;
+            }
 
             if (_sensorCounter >= _sensorLimit)
             {
@@ -847,7 +886,7 @@ namespace HondaSensorChecker
                 return;
             }
 
-            // Create sensor object in memory (persisted later in FinishedBox)
+            // Create sensor object and persist immediately
             var sensor = new Sensor
             {
                 SerialNumber = serial,
@@ -855,8 +894,22 @@ namespace HondaSensorChecker
                 ProductId = scannedProduct.ProductId,
                 OperatorId = _currentOperator.OperatorId,
                 SupplierBoxId = _currentSupplierBox.SupplierBoxId, // pode mudar no meio do processo
-                SapWorkOrderId = _currentWorkOrder.SapWorkOrderId
+                SapWorkOrderId = _currentWorkOrder.SapWorkOrderId,
+                ZfBoxId = _currentZfBox.ZfBoxId,
+                InProgress = true
             };
+
+            if (!_unitOfWork.Sensors.Add(sensor, out var addError))
+            {
+                MessageBox.Show(addError, "Database error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (!_unitOfWork.Commit(out var commitError))
+            {
+                MessageBox.Show(commitError, "Commit error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
 
             _scannedSensors.Add(sensor);
             listBoxReadedSensors.Items.Insert(0, serial);
@@ -875,18 +928,13 @@ namespace HondaSensorChecker
             // Box is full; open finalization dialog
             lblCheckResult.Enabled = false;
 
-            // Snapshot
-            var sensorsSnapshot = _scannedSensors.ToList();
-
             // bloquear botão pois vai finalizar
             btnForceChangeSupplierBox.Enabled = false;
 
             var dialog = _finishedBoxFactory.Create(
                 _currentWorkOrder,
-                _currentSupplierBox,
                 _currentProduct,
-                _sensorCounter,
-                sensorsSnapshot,
+                _currentZfBox,
                 _currentOperator.OperatorId);
 
             dialog.ShowDialog();
@@ -903,13 +951,30 @@ namespace HondaSensorChecker
                 return;
 
             // Remove da lista em memória
-            var removed = _scannedSensors.RemoveAll(s => s.SerialNumber == serial) > 0;
+            var removedSensors = _scannedSensors.Where(s => s.SerialNumber == serial).ToList();
+            var removed = removedSensors.Count > 0;
 
             // Remove da UI
             listBoxReadedSensors.Items.Remove(serial);
 
             if (removed)
             {
+                foreach (var sensor in removedSensors)
+                {
+                    if (!_unitOfWork.Sensors.Remove(sensor.SensorId, out var removeError))
+                    {
+                        MessageBox.Show(removeError, "Database error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+                }
+
+                if (!_unitOfWork.Commit(out var commitError))
+                {
+                    MessageBox.Show(commitError, "Commit error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                _scannedSensors.RemoveAll(s => s.SerialNumber == serial);
                 _sensorCounter = Math.Max(0, _sensorCounter - 1);
                 lblComponentQty.Text = $"{_sensorCounter:D3}/{_sensorLimit:D3}";
 
@@ -946,6 +1011,52 @@ namespace HondaSensorChecker
         // ADMIN FORMS
         // ----------------------------
 
+        private void btnConsultComponent_Click(object sender, EventArgs e)
+        {
+            var dialog = new ComponentHistoryDialog(_unitOfWork);
+            dialog.ShowDialog();
+        }
+
+        private void btnContinueProcess_Click(object sender, EventArgs e)
+        {
+            if (_currentWorkOrder != null)
+                return;
+
+            var inProgressBoxes = _unitOfWork.ZfBoxes
+                .Find(z => z.InProgress)
+                .OrderByDescending(z => z.ZfBoxId)
+                .ToList();
+
+            if (inProgressBoxes.Count == 0)
+            {
+                MessageBox.Show("Nenhuma caixa em andamento encontrada.", "CONTINUAR PROCESSO",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var options = inProgressBoxes
+                .Select(z =>
+                {
+                    var workOrderNumber = _unitOfWork.SapWorkOrders.GetById(z.SapWorkOrderId)?.WorkOrderNumber ?? z.SapWorkOrderId.ToString();
+                    var product = _unitOfWork.Products.GetById(z.ProductId);
+                    var productLabel = product == null ? "Produto desconhecido" : $"{product.EndPartNumber}";
+                    var uniqueLabel = string.IsNullOrWhiteSpace(z.UniqueNumber) ? "(sem etiqueta)" : z.UniqueNumber;
+
+                    return new ContinueProcessOption
+                    {
+                        ZfBox = z,
+                        Display = $"WO {workOrderNumber} | {productLabel} | Qtd {z.QtyToSend} | ZfBox {uniqueLabel}"
+                    };
+                })
+                .ToList();
+
+            using var dialog = new ContinueProcessDialog(options);
+            if (dialog.ShowDialog() != DialogResult.OK || dialog.SelectedZfBox == null)
+                return;
+
+            StartContinueProcess(dialog.SelectedZfBox);
+        }
+
         private void btnNewUser_Click(object sender, EventArgs e)
         {
             using var scope = _serviceProvider.CreateScope();
@@ -976,6 +1087,79 @@ namespace HondaSensorChecker
         private void txtWorkOrderNumber_Leave(object sender, EventArgs e)
         {
             btnWorkOrderNok.Enabled = true;
+        }
+
+        private void StartContinueProcess(ZfBox zfBox)
+        {
+            var workOrder = _unitOfWork.SapWorkOrders.GetById(zfBox.SapWorkOrderId);
+            var product = _unitOfWork.Products.GetById(zfBox.ProductId);
+
+            if (workOrder == null || product == null)
+            {
+                MessageBox.Show("Dados da caixa não encontrados no banco.", "CONTINUAR PROCESSO",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            _currentWorkOrder = workOrder;
+            _currentProduct = product;
+            _currentSupplierBox = null;
+            _currentZfBox = zfBox;
+            _sensorLimit = zfBox.QtyToSend;
+
+            _scannedSensors.Clear();
+            listBoxReadedSensors.Items.Clear();
+
+            var existingSensors = _unitOfWork.Sensors
+                .Find(s => s.ZfBoxId == zfBox.ZfBoxId && s.InProgress)
+                .OrderByDescending(s => s.ScannedTime)
+                .ToList();
+
+            _scannedSensors.AddRange(existingSensors);
+            _sensorCounter = _scannedSensors.Count;
+            lblComponentQty.Text = $"{_sensorCounter:D3}/{_sensorLimit:D3}";
+
+            foreach (var sensor in existingSensors)
+                listBoxReadedSensors.Items.Add(sensor.SerialNumber);
+
+            txtWorkOrderNumber.Text = $"O{workOrder.WorkOrderNumber}";
+            txtWorkOrderMaterialNumber.Text = $"P{product.EndPartNumber}";
+            cbWorkOrderQtyToSend.Text = _sensorLimit.ToString();
+
+            txtWorkOrderNumber.Enabled = false;
+            txtWorkOrderMaterialNumber.Enabled = false;
+            cbWorkOrderQtyToSend.Enabled = false;
+            btnWorkOrderNok.Enabled = false;
+            btnWorkOrderOk.Enabled = false;
+
+            txtLogisticUniqueNumber.Enabled = true;
+            txtStartPartNumber.Enabled = false;
+            txtQtySupplied.Enabled = false;
+            btnLogisticLabelNok.Enabled = true;
+            btnLogisticLabelOk.Enabled = false;
+
+            txtComponentSerial.Enabled = false;
+            listBoxReadedSensors.Enabled = true;
+            btnForceChangeSupplierBox.Enabled = false;
+
+            txtLogisticUniqueNumber.Clear();
+            txtStartPartNumber.Clear();
+            txtQtySupplied.Clear();
+            txtComponentSerial.Clear();
+
+            lblCheckResult.BackColor = Color.Yellow;
+            lblCheckResult.ForeColor = Color.Black;
+            lblCheckResult.Text = "LEIA A ETIQUETA DA LOGÍSTICA PARA CONTINUAR";
+
+            _forcingSupplierBoxChange = false;
+            _previousSupplierBoxId = 0;
+            _previousSupplierBoxUniqueNumber = string.Empty;
+            _allowSupplierBoxOverdraw = false;
+            _overdrawLogged = false;
+            _runtimeSupplierBoxRemaining = 0;
+
+            txtLogisticUniqueNumber.Focus();
+            UpdateContinueProcessButton();
         }
 
         // ----------------------------
@@ -1040,7 +1224,7 @@ namespace HondaSensorChecker
 
         private bool EnsureSupplierBoxHasAvailableStock(SupplierBox sbDb, string reason)
         {
-            if (sbDb.QtyRemaining > 0)
+            if (_runtimeSupplierBoxRemaining > 0)
                 return true;
 
             if (_allowSupplierBoxOverdraw)
@@ -1080,28 +1264,23 @@ namespace HondaSensorChecker
             if (_currentSupplierBox == null)
                 return;
 
-            var sbDb = _unitOfWork.SupplierBoxes.GetById(_currentSupplierBox.SupplierBoxId);
-            if (sbDb == null)
-                return;
+            _runtimeSupplierBoxRemaining += 1;
+            if (_currentSupplierBox.QtySupplied > 0 && _runtimeSupplierBoxRemaining > _currentSupplierBox.QtySupplied)
+                _runtimeSupplierBoxRemaining = _currentSupplierBox.QtySupplied;
 
-            sbDb.QtyRemaining += 1;
-            if (sbDb.QtySupplied > 0 && sbDb.QtyRemaining > sbDb.QtySupplied)
-                sbDb.QtyRemaining = sbDb.QtySupplied;
-
-            if (!_unitOfWork.SupplierBoxes.Edit(sbDb, out _))
-                return;
-
-            if (!_unitOfWork.Commit(out _))
-                return;
-
-            _currentSupplierBox.QtyRemaining = sbDb.QtyRemaining;
-            txtQtySupplied.Text = $"Q{sbDb.QtyRemaining}";
+            _currentSupplierBox.QtyRemaining = _runtimeSupplierBoxRemaining;
+            txtQtySupplied.Text = $"Q{_runtimeSupplierBoxRemaining}";
 
             AddLogSafe(
                 "SupplierBox stock restored after scrap removal. " +
-                $"SupplierBox={sbDb.UniqueNumber}, " +
+                $"SupplierBox={_currentSupplierBox.UniqueNumber}, " +
                 $"WorkOrderNumber={_currentWorkOrder?.WorkOrderNumber}, " +
-                $"QtyRemaining={sbDb.QtyRemaining}");
+                $"QtyRemaining={_runtimeSupplierBoxRemaining}");
+        }
+
+        private void UpdateContinueProcessButton()
+        {
+            btnContinueProcess.Enabled = _currentWorkOrder == null && txtWorkOrderNumber.Enabled;
         }
 
         private static string NormalizeUserName(string userName)

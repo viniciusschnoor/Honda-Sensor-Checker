@@ -14,10 +14,8 @@ namespace HondaSensorChecker
 
         public FinishedBox Create(
             SapWorkOrder workOrder,
-            SupplierBox supplierBox,
             Product product,
-            int qty,
-            List<Sensor> sensors,
+            ZfBox zfBox,
             int operatorId)
         {
             // Important:
@@ -27,10 +25,8 @@ namespace HondaSensorChecker
                 _unitOfWork,
                 operatorId,
                 workOrder,
-                supplierBox,
                 product,
-                qty,
-                sensors);
+                zfBox);
         }
     }
 }
