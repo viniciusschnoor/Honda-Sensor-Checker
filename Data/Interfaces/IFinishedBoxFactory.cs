@@ -6,10 +6,8 @@ namespace HondaSensorChecker
     {
         FinishedBox Create(
             SapWorkOrder workOrder,
-            SupplierBox supplierBox,
             Product product,
-            int qty,
-            List<Sensor> sensors,
+            ZfBox zfBox,
             int operatorId);
     }
 }

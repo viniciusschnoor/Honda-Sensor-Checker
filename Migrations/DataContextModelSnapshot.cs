@@ -115,6 +115,9 @@ namespace HondaSensorChecker.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("InProgress")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("OperatorId")
                         .HasColumnType("INTEGER");
 
@@ -185,8 +188,10 @@ namespace HondaSensorChecker.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Batch")
-                        .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("InProgress")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("OperatorId")
                         .HasColumnType("INTEGER");

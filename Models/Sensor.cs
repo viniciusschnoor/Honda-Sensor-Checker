@@ -9,6 +9,7 @@ namespace HondaSensorChecker.Models
         public int SensorId { get; set; }
         public string SerialNumber { get; set; }
         public DateTime ScannedTime { get; set; }
+        public bool InProgress { get; set; }
 
         public int ProductId { get; set; }
         public Product Product { get; set; }

@@ -47,6 +47,8 @@
             txtLogisticUniqueNumber = new TextBox();
             btnLogisticLabelOk = new Button();
             gbZfSensorChecker = new GroupBox();
+            btnConsultComponent = new Button();
+            btnContinueProcess = new Button();
             btnForceChangeSupplierBox = new Button();
             btnRemoveSensor = new Button();
             listBoxReadedSensors = new ListBox();
@@ -425,6 +427,8 @@
             // gbZfSensorChecker
             // 
             gbZfSensorChecker.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            gbZfSensorChecker.Controls.Add(btnConsultComponent);
+            gbZfSensorChecker.Controls.Add(btnContinueProcess);
             gbZfSensorChecker.Controls.Add(btnForceChangeSupplierBox);
             gbZfSensorChecker.Controls.Add(btnRemoveSensor);
             gbZfSensorChecker.Controls.Add(listBoxReadedSensors);
@@ -439,11 +443,33 @@
             gbZfSensorChecker.TabStop = false;
             gbZfSensorChecker.Text = "SENSOR CHECKER";
             // 
+            // btnConsultComponent
+            // 
+            btnConsultComponent.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnConsultComponent.Location = new Point(6, 98);
+            btnConsultComponent.Name = "btnConsultComponent";
+            btnConsultComponent.Size = new Size(268, 28);
+            btnConsultComponent.TabIndex = 7;
+            btnConsultComponent.Text = "CONSULTAR COMPONENTE";
+            btnConsultComponent.UseVisualStyleBackColor = true;
+            btnConsultComponent.Click += btnConsultComponent_Click;
+            // 
+            // btnContinueProcess
+            // 
+            btnContinueProcess.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnContinueProcess.Location = new Point(6, 132);
+            btnContinueProcess.Name = "btnContinueProcess";
+            btnContinueProcess.Size = new Size(268, 28);
+            btnContinueProcess.TabIndex = 6;
+            btnContinueProcess.Text = "CONTINUAR PROCESSO";
+            btnContinueProcess.UseVisualStyleBackColor = true;
+            btnContinueProcess.Click += btnContinueProcess_Click;
+            // 
             // btnForceChangeSupplierBox
             // 
             btnForceChangeSupplierBox.Enabled = false;
             btnForceChangeSupplierBox.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnForceChangeSupplierBox.Location = new Point(6, 98);
+            btnForceChangeSupplierBox.Location = new Point(6, 166);
             btnForceChangeSupplierBox.Name = "btnForceChangeSupplierBox";
             btnForceChangeSupplierBox.Size = new Size(268, 28);
             btnForceChangeSupplierBox.TabIndex = 5;
@@ -454,7 +480,7 @@
             // btnRemoveSensor
             // 
             btnRemoveSensor.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnRemoveSensor.Location = new Point(6, 132);
+            btnRemoveSensor.Location = new Point(6, 200);
             btnRemoveSensor.Name = "btnRemoveSensor";
             btnRemoveSensor.Size = new Size(268, 28);
             btnRemoveSensor.TabIndex = 4;
@@ -467,9 +493,9 @@
             listBoxReadedSensors.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
             listBoxReadedSensors.Font = new Font("Segoe UI", 9F);
             listBoxReadedSensors.FormattingEnabled = true;
-            listBoxReadedSensors.Location = new Point(6, 162);
+            listBoxReadedSensors.Location = new Point(6, 234);
             listBoxReadedSensors.Name = "listBoxReadedSensors";
-            listBoxReadedSensors.Size = new Size(268, 124);
+            listBoxReadedSensors.Size = new Size(268, 52);
             listBoxReadedSensors.TabIndex = 3;
             // 
             // label7
@@ -577,5 +603,7 @@
         // NEW/EXISTING
         private Button btnRemoveSensor;
         private Button btnForceChangeSupplierBox;
+        private Button btnConsultComponent;
+        private Button btnContinueProcess;
     }
 }
