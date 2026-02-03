@@ -222,18 +222,16 @@ namespace HondaSensorChecker
 
             foreach (var sensor in sensorsDb)
             {
-                sensor.InProgress = false;
+                var sensorDb = _unitOfWork.Sensors.GetById(sensor.SensorId);
+                if (sensorDb == null)
+                    continue;
 
-                if (!_unitOfWork.Sensors.Edit(sensor, out error))
-                {
-                    MessageBox.Show(error, "Database error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return false;
-                }
+                sensorDb.InProgress = false;
 
-                if (!supplierBoxCounts.ContainsKey(sensor.SupplierBoxId))
-                    supplierBoxCounts[sensor.SupplierBoxId] = 0;
+                if (!supplierBoxCounts.ContainsKey(sensorDb.SupplierBoxId))
+                    supplierBoxCounts[sensorDb.SupplierBoxId] = 0;
 
-                supplierBoxCounts[sensor.SupplierBoxId] += 1;
+                supplierBoxCounts[sensorDb.SupplierBoxId] += 1;
             }
 
             foreach (var kvp in supplierBoxCounts)
