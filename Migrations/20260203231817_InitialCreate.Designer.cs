@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HondaSensorChecker.Migrations
 {
     [DbContext(typeof(DataContext))]
-    [Migration("20260131233207_InitialCreate")]
+    [Migration("20260203231817_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -118,6 +118,9 @@ namespace HondaSensorChecker.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("InProgress")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("OperatorId")
                         .HasColumnType("INTEGER");
 
@@ -188,8 +191,10 @@ namespace HondaSensorChecker.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Batch")
-                        .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("InProgress")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("OperatorId")
                         .HasColumnType("INTEGER");

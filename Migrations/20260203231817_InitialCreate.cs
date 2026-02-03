@@ -113,7 +113,8 @@ namespace HondaSensorChecker.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     QtyToSend = table.Column<int>(type: "INTEGER", nullable: false),
                     UniqueNumber = table.Column<string>(type: "TEXT", nullable: true),
-                    Batch = table.Column<string>(type: "TEXT", nullable: false),
+                    Batch = table.Column<string>(type: "TEXT", nullable: true),
+                    InProgress = table.Column<bool>(type: "INTEGER", nullable: false),
                     ProductId = table.Column<int>(type: "INTEGER", nullable: false),
                     SapWorkOrderId = table.Column<int>(type: "INTEGER", nullable: false),
                     OperatorId = table.Column<int>(type: "INTEGER", nullable: false)
@@ -149,6 +150,7 @@ namespace HondaSensorChecker.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     SerialNumber = table.Column<string>(type: "TEXT", nullable: false),
                     ScannedTime = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    InProgress = table.Column<bool>(type: "INTEGER", nullable: false),
                     ProductId = table.Column<int>(type: "INTEGER", nullable: false),
                     OperatorId = table.Column<int>(type: "INTEGER", nullable: false),
                     SupplierBoxId = table.Column<int>(type: "INTEGER", nullable: false),
