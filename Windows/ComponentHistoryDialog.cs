@@ -8,18 +8,26 @@ namespace HondaSensorChecker
 {
     public partial class ComponentHistoryDialog : Form
     {
+<<<<<<< HEAD
         private readonly IUnitOfWork? _unitOfWork;
+=======
+        private readonly IUnitOfWork _unitOfWork;
+>>>>>>> 4d73f24c0c9211149f55320542b8b65572e153e0
 
         // ✅ Necessário para o Designer
         public ComponentHistoryDialog()
         {
             InitializeComponent();
+<<<<<<< HEAD
         }
 
         // ✅ Usado em runtime
         public ComponentHistoryDialog(IUnitOfWork unitOfWork) : this()
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
+=======
+            _unitOfWork = unitOfWork;
+>>>>>>> 4d73f24c0c9211149f55320542b8b65572e153e0
         }
 
         private void TxtSerial_KeyPress(object sender, KeyPressEventArgs e)

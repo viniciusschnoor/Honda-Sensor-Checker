@@ -13,6 +13,15 @@ namespace HondaSensorChecker
         public ContinueProcessDialog()
         {
             InitializeComponent();
+<<<<<<< HEAD
+=======
+
+            foreach (var option in options)
+                _listBox.Items.Add(option);
+
+            if (_listBox.Items.Count > 0)
+                _listBox.SelectedIndex = 0;
+>>>>>>> 4d73f24c0c9211149f55320542b8b65572e153e0
         }
 
         // ✅ Runtime
@@ -21,7 +30,16 @@ namespace HondaSensorChecker
             SetOptions(options);
         }
 
+<<<<<<< HEAD
         public void SetOptions(IEnumerable<ContinueProcessOption> options)
+=======
+        private void BtnCancel_Click(object sender, System.EventArgs e)
+        {
+            DialogResult = DialogResult.Cancel;
+        }
+
+        private void BtnOk_Click(object sender, System.EventArgs e)
+>>>>>>> 4d73f24c0c9211149f55320542b8b65572e153e0
         {
             listBox.Items.Clear();
 
