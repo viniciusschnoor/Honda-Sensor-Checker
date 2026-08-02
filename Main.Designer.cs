@@ -495,7 +495,7 @@
             listBoxReadedSensors.FormattingEnabled = true;
             listBoxReadedSensors.Location = new Point(6, 234);
             listBoxReadedSensors.Name = "listBoxReadedSensors";
-            listBoxReadedSensors.Size = new Size(268, 52);
+            listBoxReadedSensors.Size = new Size(268, 49);
             listBoxReadedSensors.TabIndex = 3;
             // 
             // label7
@@ -530,7 +530,7 @@
             txtComponentSerial.TabIndex = 0;
             txtComponentSerial.TextAlign = HorizontalAlignment.Center;
             txtComponentSerial.Enter += txtComponentSerial_Enter;
-            txtComponentSerial.KeyPress += txtComponentSerial_KeyPress;
+            txtComponentSerial.KeyPress += txtStartPartNumber_KeyPress;
             // 
             // HSCMainForm
             // 
