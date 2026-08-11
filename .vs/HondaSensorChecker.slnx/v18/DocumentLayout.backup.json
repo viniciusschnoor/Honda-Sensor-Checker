@@ -3,12 +3,12 @@
   "WorkspaceRootPath": "C:\\Users\\vinic\\OneDrive\\Documents\\GitHub\\Honda-Sensor-Checker\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{6604F85E-0C11-76A8-019E-A56C2C190F99}|HondaSensorChecker.csproj|c:\\users\\vinic\\onedrive\\documents\\github\\honda-sensor-checker\\main.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
-      "RelativeMoniker": "D:0:0:{6604F85E-0C11-76A8-019E-A56C2C190F99}|HondaSensorChecker.csproj|solutionrelative:main.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{6604F85E-0C11-76A8-019E-A56C2C190F99}|HondaSensorChecker.csproj|c:\\users\\vinic\\onedrive\\documents\\github\\honda-sensor-checker\\main.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{6604F85E-0C11-76A8-019E-A56C2C190F99}|HondaSensorChecker.csproj|solutionrelative:main.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{6604F85E-0C11-76A8-019E-A56C2C190F99}|HondaSensorChecker.csproj|C:\\Users\\vinic\\OneDrive\\Documents\\GitHub\\Honda-Sensor-Checker\\main.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{6604F85E-0C11-76A8-019E-A56C2C190F99}|HondaSensorChecker.csproj|solutionrelative:main.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
     }
   ],
   "DocumentGroupContainers": [
@@ -18,29 +18,29 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 1,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "Main.cs [Design]",
               "DocumentMoniker": "C:\\Users\\vinic\\OneDrive\\Documents\\GitHub\\Honda-Sensor-Checker\\Main.cs",
               "RelativeDocumentMoniker": "Main.cs",
-              "ToolTip": "C:\\Users\\vinic\\OneDrive\\Documents\\GitHub\\Honda-Sensor-Checker\\Main.cs [Design]*",
-              "RelativeToolTip": "Main.cs [Design]*",
+              "ToolTip": "C:\\Users\\vinic\\OneDrive\\Documents\\GitHub\\Honda-Sensor-Checker\\Main.cs [Design]",
+              "RelativeToolTip": "Main.cs [Design]",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-08-02T03:54:14.668Z",
               "EditorCaption": " [Design]"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "Main.cs",
               "DocumentMoniker": "C:\\Users\\vinic\\OneDrive\\Documents\\GitHub\\Honda-Sensor-Checker\\Main.cs",
               "RelativeDocumentMoniker": "Main.cs",
-              "ToolTip": "C:\\Users\\vinic\\OneDrive\\Documents\\GitHub\\Honda-Sensor-Checker\\Main.cs*",
-              "RelativeToolTip": "Main.cs*",
-              "ViewState": "AgIAAHQBAAAAAAAAAAAIwMMBAAANAAAAAAAAAA==",
+              "ToolTip": "C:\\Users\\vinic\\OneDrive\\Documents\\GitHub\\Honda-Sensor-Checker\\Main.cs",
+              "RelativeToolTip": "Main.cs",
+              "ViewState": "AgIAAHQBAAAAAAAAAAAIwIIBAABNAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-08-02T03:54:03.208Z",
               "EditorCaption": ""
