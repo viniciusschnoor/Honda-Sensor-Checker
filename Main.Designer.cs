@@ -68,9 +68,10 @@
             // imgClientLogo
             // 
             imgClientLogo.Image = Properties.Resources.honda_seeklogo;
-            imgClientLogo.Location = new Point(59, 3);
+            imgClientLogo.Location = new Point(67, 4);
+            imgClientLogo.Margin = new Padding(3, 4, 3, 4);
             imgClientLogo.Name = "imgClientLogo";
-            imgClientLogo.Size = new Size(50, 50);
+            imgClientLogo.Size = new Size(57, 67);
             imgClientLogo.SizeMode = PictureBoxSizeMode.Zoom;
             imgClientLogo.TabIndex = 0;
             imgClientLogo.TabStop = false;
@@ -78,9 +79,10 @@
             // imgZfLogo
             // 
             imgZfLogo.Image = Properties.Resources.zf_logo_blue;
-            imgZfLogo.Location = new Point(3, 3);
+            imgZfLogo.Location = new Point(3, 4);
+            imgZfLogo.Margin = new Padding(3, 4, 3, 4);
             imgZfLogo.Name = "imgZfLogo";
-            imgZfLogo.Size = new Size(50, 50);
+            imgZfLogo.Size = new Size(57, 67);
             imgZfLogo.SizeMode = PictureBoxSizeMode.Zoom;
             imgZfLogo.TabIndex = 1;
             imgZfLogo.TabStop = false;
@@ -90,9 +92,9 @@
             lblAppTitle.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             lblAppTitle.AutoSize = true;
             lblAppTitle.Font = new Font("Segoe UI Semibold", 20.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            lblAppTitle.Location = new Point(115, 8);
+            lblAppTitle.Location = new Point(130, 14);
             lblAppTitle.Name = "lblAppTitle";
-            lblAppTitle.Size = new Size(205, 37);
+            lblAppTitle.Size = new Size(257, 46);
             lblAppTitle.TabIndex = 2;
             lblAppTitle.Text = "Sensor Checker";
             // 
@@ -106,16 +108,18 @@
             panel1.Controls.Add(imgZfLogo);
             panel1.Controls.Add(lblAppTitle);
             panel1.Controls.Add(imgClientLogo);
-            panel1.Location = new Point(12, 12);
+            panel1.Location = new Point(14, 16);
+            panel1.Margin = new Padding(3, 4, 3, 4);
             panel1.Name = "panel1";
-            panel1.Size = new Size(916, 57);
+            panel1.Size = new Size(1047, 76);
             panel1.TabIndex = 3;
             // 
             // btnNewProduct
             // 
-            btnNewProduct.Location = new Point(326, 32);
+            btnNewProduct.Location = new Point(393, 41);
+            btnNewProduct.Margin = new Padding(3, 4, 3, 4);
             btnNewProduct.Name = "btnNewProduct";
-            btnNewProduct.Size = new Size(83, 23);
+            btnNewProduct.Size = new Size(196, 31);
             btnNewProduct.TabIndex = 5;
             btnNewProduct.Text = "+ PRODUTO";
             btnNewProduct.UseVisualStyleBackColor = true;
@@ -124,9 +128,10 @@
             // 
             // btnLogs
             // 
-            btnLogs.Location = new Point(415, 3);
+            btnLogs.Location = new Point(494, 4);
+            btnLogs.Margin = new Padding(3, 4, 3, 4);
             btnLogs.Name = "btnLogs";
-            btnLogs.Size = new Size(83, 23);
+            btnLogs.Size = new Size(95, 31);
             btnLogs.TabIndex = 6;
             btnLogs.Text = "LOGS";
             btnLogs.UseVisualStyleBackColor = true;
@@ -135,9 +140,10 @@
             // 
             // btnNewUser
             // 
-            btnNewUser.Location = new Point(326, 3);
+            btnNewUser.Location = new Point(393, 4);
+            btnNewUser.Margin = new Padding(3, 4, 3, 4);
             btnNewUser.Name = "btnNewUser";
-            btnNewUser.Size = new Size(83, 23);
+            btnNewUser.Size = new Size(95, 31);
             btnNewUser.TabIndex = 4;
             btnNewUser.Text = "+ USUÁRIO";
             btnNewUser.UseVisualStyleBackColor = true;
@@ -148,9 +154,9 @@
             // 
             lblComponentQty.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
             lblComponentQty.Font = new Font("Segoe UI Semibold", 20.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            lblComponentQty.Location = new Point(710, 3);
+            lblComponentQty.Location = new Point(811, 4);
             lblComponentQty.Name = "lblComponentQty";
-            lblComponentQty.Size = new Size(204, 50);
+            lblComponentQty.Size = new Size(233, 67);
             lblComponentQty.TabIndex = 3;
             lblComponentQty.Text = "000/000";
             lblComponentQty.TextAlign = ContentAlignment.MiddleRight;
@@ -160,9 +166,11 @@
             gbSapWorkOrderInfo.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             gbSapWorkOrderInfo.Controls.Add(tableLayoutPanel1);
             gbSapWorkOrderInfo.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            gbSapWorkOrderInfo.Location = new Point(12, 75);
+            gbSapWorkOrderInfo.Location = new Point(14, 100);
+            gbSapWorkOrderInfo.Margin = new Padding(3, 4, 3, 4);
             gbSapWorkOrderInfo.Name = "gbSapWorkOrderInfo";
-            gbSapWorkOrderInfo.Size = new Size(916, 97);
+            gbSapWorkOrderInfo.Padding = new Padding(3, 4, 3, 4);
+            gbSapWorkOrderInfo.Size = new Size(1047, 129);
             gbSapWorkOrderInfo.TabIndex = 4;
             gbSapWorkOrderInfo.TabStop = false;
             gbSapWorkOrderInfo.Text = "SAP - WORK ORDER";
@@ -184,12 +192,13 @@
             tableLayoutPanel1.Controls.Add(cbWorkOrderQtyToSend, 2, 1);
             tableLayoutPanel1.Controls.Add(label3, 2, 0);
             tableLayoutPanel1.Controls.Add(btnWorkOrderOk, 4, 1);
-            tableLayoutPanel1.Location = new Point(6, 22);
+            tableLayoutPanel1.Location = new Point(7, 29);
+            tableLayoutPanel1.Margin = new Padding(3, 4, 3, 4);
             tableLayoutPanel1.Name = "tableLayoutPanel1";
             tableLayoutPanel1.RowCount = 2;
-            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 27F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle());
-            tableLayoutPanel1.Size = new Size(904, 69);
+            tableLayoutPanel1.Size = new Size(1033, 92);
             tableLayoutPanel1.TabIndex = 6;
             // 
             // btnWorkOrderNok
@@ -198,9 +207,10 @@
             btnWorkOrderNok.Enabled = false;
             btnWorkOrderNok.Font = new Font("Segoe UI", 18F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnWorkOrderNok.ForeColor = Color.FromArgb(192, 0, 0);
-            btnWorkOrderNok.Location = new Point(815, 23);
+            btnWorkOrderNok.Location = new Point(931, 31);
+            btnWorkOrderNok.Margin = new Padding(3, 4, 3, 4);
             btnWorkOrderNok.Name = "btnWorkOrderNok";
-            btnWorkOrderNok.Size = new Size(39, 40);
+            btnWorkOrderNok.Size = new Size(45, 53);
             btnWorkOrderNok.TabIndex = 7;
             btnWorkOrderNok.Text = "✕";
             btnWorkOrderNok.UseVisualStyleBackColor = true;
@@ -211,9 +221,10 @@
             txtWorkOrderNumber.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             txtWorkOrderNumber.Enabled = false;
             txtWorkOrderNumber.Font = new Font("Segoe UI", 18F);
-            txtWorkOrderNumber.Location = new Point(3, 23);
+            txtWorkOrderNumber.Location = new Point(3, 31);
+            txtWorkOrderNumber.Margin = new Padding(3, 4, 3, 4);
             txtWorkOrderNumber.Name = "txtWorkOrderNumber";
-            txtWorkOrderNumber.Size = new Size(310, 39);
+            txtWorkOrderNumber.Size = new Size(355, 47);
             txtWorkOrderNumber.TabIndex = 0;
             txtWorkOrderNumber.TextAlign = HorizontalAlignment.Center;
             txtWorkOrderNumber.KeyPress += txtWorkOrderNumber_KeyPress;
@@ -223,9 +234,9 @@
             // 
             label2.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             label2.AutoSize = true;
-            label2.Location = new Point(319, 5);
+            label2.Location = new Point(364, 7);
             label2.Name = "label2";
-            label2.Size = new Size(100, 15);
+            label2.Size = new Size(131, 20);
             label2.TabIndex = 3;
             label2.Text = "PartNumber Final";
             // 
@@ -233,9 +244,9 @@
             // 
             label1.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             label1.AutoSize = true;
-            label1.Location = new Point(3, 5);
+            label1.Location = new Point(3, 7);
             label1.Name = "label1";
-            label1.Size = new Size(75, 15);
+            label1.Size = new Size(98, 20);
             label1.TabIndex = 2;
             label1.Text = "Nº da ordem";
             // 
@@ -244,9 +255,10 @@
             txtWorkOrderMaterialNumber.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             txtWorkOrderMaterialNumber.Enabled = false;
             txtWorkOrderMaterialNumber.Font = new Font("Segoe UI", 18F);
-            txtWorkOrderMaterialNumber.Location = new Point(319, 23);
+            txtWorkOrderMaterialNumber.Location = new Point(364, 31);
+            txtWorkOrderMaterialNumber.Margin = new Padding(3, 4, 3, 4);
             txtWorkOrderMaterialNumber.Name = "txtWorkOrderMaterialNumber";
-            txtWorkOrderMaterialNumber.Size = new Size(310, 39);
+            txtWorkOrderMaterialNumber.Size = new Size(355, 47);
             txtWorkOrderMaterialNumber.TabIndex = 1;
             txtWorkOrderMaterialNumber.TextAlign = HorizontalAlignment.Center;
             txtWorkOrderMaterialNumber.Enter += txtWorkOrderMaterialNumber_Enter;
@@ -259,9 +271,10 @@
             cbWorkOrderQtyToSend.Font = new Font("Segoe UI", 18F);
             cbWorkOrderQtyToSend.FormattingEnabled = true;
             cbWorkOrderQtyToSend.Items.AddRange(new object[] { "3", "10", "60", "420" });
-            cbWorkOrderQtyToSend.Location = new Point(635, 23);
+            cbWorkOrderQtyToSend.Location = new Point(725, 31);
+            cbWorkOrderQtyToSend.Margin = new Padding(3, 4, 3, 4);
             cbWorkOrderQtyToSend.Name = "cbWorkOrderQtyToSend";
-            cbWorkOrderQtyToSend.Size = new Size(174, 40);
+            cbWorkOrderQtyToSend.Size = new Size(200, 49);
             cbWorkOrderQtyToSend.TabIndex = 4;
             cbWorkOrderQtyToSend.SelectedValueChanged += cbWorkOrderQtyToSend_SelectedValueChanged;
             cbWorkOrderQtyToSend.Enter += cbWorkOrderQtyToSend_Enter;
@@ -270,9 +283,9 @@
             // 
             label3.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             label3.AutoSize = true;
-            label3.Location = new Point(635, 5);
+            label3.Location = new Point(725, 7);
             label3.Name = "label3";
-            label3.Size = new Size(113, 15);
+            label3.Size = new Size(148, 20);
             label3.TabIndex = 5;
             label3.Text = "Quantidade a Enviar";
             // 
@@ -282,9 +295,10 @@
             btnWorkOrderOk.Enabled = false;
             btnWorkOrderOk.Font = new Font("Segoe UI", 18F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnWorkOrderOk.ForeColor = Color.FromArgb(0, 192, 0);
-            btnWorkOrderOk.Location = new Point(860, 23);
+            btnWorkOrderOk.Location = new Point(982, 31);
+            btnWorkOrderOk.Margin = new Padding(3, 4, 3, 4);
             btnWorkOrderOk.Name = "btnWorkOrderOk";
-            btnWorkOrderOk.Size = new Size(41, 40);
+            btnWorkOrderOk.Size = new Size(48, 53);
             btnWorkOrderOk.TabIndex = 5;
             btnWorkOrderOk.Text = "✓";
             btnWorkOrderOk.UseVisualStyleBackColor = true;
@@ -295,9 +309,11 @@
             gbZfLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             gbZfLabel.Controls.Add(tableLayoutPanel2);
             gbZfLabel.Font = new Font("Segoe UI Semibold", 9F);
-            gbZfLabel.Location = new Point(12, 178);
+            gbZfLabel.Location = new Point(14, 237);
+            gbZfLabel.Margin = new Padding(3, 4, 3, 4);
             gbZfLabel.Name = "gbZfLabel";
-            gbZfLabel.Size = new Size(916, 94);
+            gbZfLabel.Padding = new Padding(3, 4, 3, 4);
+            gbZfLabel.Size = new Size(1047, 125);
             gbZfLabel.TabIndex = 5;
             gbZfLabel.TabStop = false;
             gbZfLabel.Text = "ZF - LOGISTIC LABEL";
@@ -319,12 +335,13 @@
             tableLayoutPanel2.Controls.Add(txtStartPartNumber, 1, 1);
             tableLayoutPanel2.Controls.Add(txtLogisticUniqueNumber, 0, 1);
             tableLayoutPanel2.Controls.Add(btnLogisticLabelOk, 4, 1);
-            tableLayoutPanel2.Location = new Point(6, 22);
+            tableLayoutPanel2.Location = new Point(7, 29);
+            tableLayoutPanel2.Margin = new Padding(3, 4, 3, 4);
             tableLayoutPanel2.Name = "tableLayoutPanel2";
             tableLayoutPanel2.RowCount = 2;
-            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Absolute, 27F));
             tableLayoutPanel2.RowStyles.Add(new RowStyle());
-            tableLayoutPanel2.Size = new Size(904, 66);
+            tableLayoutPanel2.Size = new Size(1033, 88);
             tableLayoutPanel2.TabIndex = 0;
             // 
             // btnLogisticLabelNok
@@ -333,9 +350,10 @@
             btnLogisticLabelNok.Enabled = false;
             btnLogisticLabelNok.Font = new Font("Segoe UI", 18F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnLogisticLabelNok.ForeColor = Color.FromArgb(192, 0, 0);
-            btnLogisticLabelNok.Location = new Point(816, 23);
+            btnLogisticLabelNok.Location = new Point(930, 31);
+            btnLogisticLabelNok.Margin = new Padding(3, 4, 3, 4);
             btnLogisticLabelNok.Name = "btnLogisticLabelNok";
-            btnLogisticLabelNok.Size = new Size(39, 39);
+            btnLogisticLabelNok.Size = new Size(45, 52);
             btnLogisticLabelNok.TabIndex = 8;
             btnLogisticLabelNok.Text = "✕";
             btnLogisticLabelNok.UseVisualStyleBackColor = true;
@@ -345,9 +363,9 @@
             // 
             label6.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             label6.AutoSize = true;
-            label6.Location = new Point(545, 5);
+            label6.Location = new Point(621, 7);
             label6.Name = "label6";
-            label6.Size = new Size(116, 15);
+            label6.Size = new Size(151, 20);
             label6.TabIndex = 6;
             label6.Text = "Quantidade da Caixa";
             // 
@@ -355,9 +373,9 @@
             // 
             label5.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             label5.AutoSize = true;
-            label5.Location = new Point(274, 5);
+            label5.Location = new Point(312, 7);
             label5.Name = "label5";
-            label5.Size = new Size(88, 15);
+            label5.Size = new Size(115, 20);
             label5.TabIndex = 6;
             label5.Text = "PartNumber ZF";
             // 
@@ -365,9 +383,9 @@
             // 
             label4.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             label4.AutoSize = true;
-            label4.Location = new Point(3, 5);
+            label4.Location = new Point(3, 7);
             label4.Name = "label4";
-            label4.Size = new Size(85, 15);
+            label4.Size = new Size(110, 20);
             label4.TabIndex = 6;
             label4.Text = "Número Único";
             // 
@@ -376,9 +394,10 @@
             txtQtySupplied.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             txtQtySupplied.Enabled = false;
             txtQtySupplied.Font = new Font("Segoe UI", 18F);
-            txtQtySupplied.Location = new Point(545, 23);
+            txtQtySupplied.Location = new Point(621, 31);
+            txtQtySupplied.Margin = new Padding(3, 4, 3, 4);
             txtQtySupplied.Name = "txtQtySupplied";
-            txtQtySupplied.Size = new Size(265, 39);
+            txtQtySupplied.Size = new Size(303, 47);
             txtQtySupplied.TabIndex = 6;
             txtQtySupplied.TextAlign = HorizontalAlignment.Center;
             txtQtySupplied.Enter += txtQtySupplied_Enter;
@@ -389,9 +408,10 @@
             txtStartPartNumber.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             txtStartPartNumber.Enabled = false;
             txtStartPartNumber.Font = new Font("Segoe UI", 18F);
-            txtStartPartNumber.Location = new Point(274, 23);
+            txtStartPartNumber.Location = new Point(312, 31);
+            txtStartPartNumber.Margin = new Padding(3, 4, 3, 4);
             txtStartPartNumber.Name = "txtStartPartNumber";
-            txtStartPartNumber.Size = new Size(265, 39);
+            txtStartPartNumber.Size = new Size(303, 47);
             txtStartPartNumber.TabIndex = 6;
             txtStartPartNumber.TextAlign = HorizontalAlignment.Center;
             txtStartPartNumber.Enter += txtStartPartNumber_Enter;
@@ -402,9 +422,10 @@
             txtLogisticUniqueNumber.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             txtLogisticUniqueNumber.Enabled = false;
             txtLogisticUniqueNumber.Font = new Font("Segoe UI", 18F);
-            txtLogisticUniqueNumber.Location = new Point(3, 23);
+            txtLogisticUniqueNumber.Location = new Point(3, 31);
+            txtLogisticUniqueNumber.Margin = new Padding(3, 4, 3, 4);
             txtLogisticUniqueNumber.Name = "txtLogisticUniqueNumber";
-            txtLogisticUniqueNumber.Size = new Size(265, 39);
+            txtLogisticUniqueNumber.Size = new Size(303, 47);
             txtLogisticUniqueNumber.TabIndex = 0;
             txtLogisticUniqueNumber.TextAlign = HorizontalAlignment.Center;
             txtLogisticUniqueNumber.Enter += txtLogisticUniqueNumber_Enter;
@@ -416,9 +437,10 @@
             btnLogisticLabelOk.Enabled = false;
             btnLogisticLabelOk.Font = new Font("Segoe UI", 18F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnLogisticLabelOk.ForeColor = Color.FromArgb(0, 192, 0);
-            btnLogisticLabelOk.Location = new Point(861, 23);
+            btnLogisticLabelOk.Location = new Point(981, 31);
+            btnLogisticLabelOk.Margin = new Padding(3, 4, 3, 4);
             btnLogisticLabelOk.Name = "btnLogisticLabelOk";
-            btnLogisticLabelOk.Size = new Size(40, 39);
+            btnLogisticLabelOk.Size = new Size(49, 52);
             btnLogisticLabelOk.TabIndex = 6;
             btnLogisticLabelOk.Text = "✓";
             btnLogisticLabelOk.UseVisualStyleBackColor = true;
@@ -436,9 +458,11 @@
             gbZfSensorChecker.Controls.Add(lblCheckResult);
             gbZfSensorChecker.Controls.Add(txtComponentSerial);
             gbZfSensorChecker.Font = new Font("Segoe UI Semibold", 9F);
-            gbZfSensorChecker.Location = new Point(12, 278);
+            gbZfSensorChecker.Location = new Point(14, 371);
+            gbZfSensorChecker.Margin = new Padding(3, 4, 3, 4);
             gbZfSensorChecker.Name = "gbZfSensorChecker";
-            gbZfSensorChecker.Size = new Size(916, 305);
+            gbZfSensorChecker.Padding = new Padding(3, 4, 3, 4);
+            gbZfSensorChecker.Size = new Size(1047, 407);
             gbZfSensorChecker.TabIndex = 6;
             gbZfSensorChecker.TabStop = false;
             gbZfSensorChecker.Text = "SENSOR CHECKER";
@@ -446,9 +470,10 @@
             // btnConsultComponent
             // 
             btnConsultComponent.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnConsultComponent.Location = new Point(6, 98);
+            btnConsultComponent.Location = new Point(7, 131);
+            btnConsultComponent.Margin = new Padding(3, 4, 3, 4);
             btnConsultComponent.Name = "btnConsultComponent";
-            btnConsultComponent.Size = new Size(268, 28);
+            btnConsultComponent.Size = new Size(306, 37);
             btnConsultComponent.TabIndex = 7;
             btnConsultComponent.Text = "CONSULTAR COMPONENTE";
             btnConsultComponent.UseVisualStyleBackColor = true;
@@ -457,9 +482,10 @@
             // btnContinueProcess
             // 
             btnContinueProcess.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnContinueProcess.Location = new Point(6, 132);
+            btnContinueProcess.Location = new Point(7, 176);
+            btnContinueProcess.Margin = new Padding(3, 4, 3, 4);
             btnContinueProcess.Name = "btnContinueProcess";
-            btnContinueProcess.Size = new Size(268, 28);
+            btnContinueProcess.Size = new Size(306, 37);
             btnContinueProcess.TabIndex = 6;
             btnContinueProcess.Text = "CONTINUAR PROCESSO";
             btnContinueProcess.UseVisualStyleBackColor = true;
@@ -469,9 +495,10 @@
             // 
             btnForceChangeSupplierBox.Enabled = false;
             btnForceChangeSupplierBox.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnForceChangeSupplierBox.Location = new Point(6, 166);
+            btnForceChangeSupplierBox.Location = new Point(7, 221);
+            btnForceChangeSupplierBox.Margin = new Padding(3, 4, 3, 4);
             btnForceChangeSupplierBox.Name = "btnForceChangeSupplierBox";
-            btnForceChangeSupplierBox.Size = new Size(268, 28);
+            btnForceChangeSupplierBox.Size = new Size(306, 37);
             btnForceChangeSupplierBox.TabIndex = 5;
             btnForceChangeSupplierBox.Text = "TROCAR SUPPLIER BOX";
             btnForceChangeSupplierBox.UseVisualStyleBackColor = true;
@@ -480,9 +507,10 @@
             // btnRemoveSensor
             // 
             btnRemoveSensor.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnRemoveSensor.Location = new Point(6, 200);
+            btnRemoveSensor.Location = new Point(7, 267);
+            btnRemoveSensor.Margin = new Padding(3, 4, 3, 4);
             btnRemoveSensor.Name = "btnRemoveSensor";
-            btnRemoveSensor.Size = new Size(268, 28);
+            btnRemoveSensor.Size = new Size(306, 37);
             btnRemoveSensor.TabIndex = 4;
             btnRemoveSensor.Text = "REMOVER (SCRAP)";
             btnRemoveSensor.UseVisualStyleBackColor = true;
@@ -493,17 +521,18 @@
             listBoxReadedSensors.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
             listBoxReadedSensors.Font = new Font("Segoe UI", 9F);
             listBoxReadedSensors.FormattingEnabled = true;
-            listBoxReadedSensors.Location = new Point(6, 234);
+            listBoxReadedSensors.Location = new Point(7, 312);
+            listBoxReadedSensors.Margin = new Padding(3, 4, 3, 4);
             listBoxReadedSensors.Name = "listBoxReadedSensors";
-            listBoxReadedSensors.Size = new Size(268, 49);
+            listBoxReadedSensors.Size = new Size(306, 64);
             listBoxReadedSensors.TabIndex = 3;
             // 
             // label7
             // 
             label7.AutoSize = true;
-            label7.Location = new Point(6, 19);
+            label7.Location = new Point(7, 25);
             label7.Name = "label7";
-            label7.Size = new Size(43, 15);
+            label7.Size = new Size(56, 20);
             label7.TabIndex = 1;
             label7.Text = "Leitura";
             // 
@@ -512,9 +541,9 @@
             lblCheckResult.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             lblCheckResult.BackColor = Color.Yellow;
             lblCheckResult.Font = new Font("Segoe UI", 36F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            lblCheckResult.Location = new Point(280, 17);
+            lblCheckResult.Location = new Point(320, 23);
             lblCheckResult.Name = "lblCheckResult";
-            lblCheckResult.Size = new Size(630, 284);
+            lblCheckResult.Size = new Size(720, 379);
             lblCheckResult.TabIndex = 2;
             lblCheckResult.Text = "REALIZAR LEITURA DA WORK ORDER";
             lblCheckResult.TextAlign = ContentAlignment.MiddleCenter;
@@ -524,9 +553,10 @@
             // 
             txtComponentSerial.Enabled = false;
             txtComponentSerial.Font = new Font("Segoe UI", 27F);
-            txtComponentSerial.Location = new Point(6, 37);
+            txtComponentSerial.Location = new Point(7, 49);
+            txtComponentSerial.Margin = new Padding(3, 4, 3, 4);
             txtComponentSerial.Name = "txtComponentSerial";
-            txtComponentSerial.Size = new Size(268, 55);
+            txtComponentSerial.Size = new Size(306, 67);
             txtComponentSerial.TabIndex = 0;
             txtComponentSerial.TextAlign = HorizontalAlignment.Center;
             txtComponentSerial.Enter += txtComponentSerial_Enter;
@@ -534,16 +564,17 @@
             // 
             // HSCMainForm
             // 
-            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = SystemColors.Window;
-            ClientSize = new Size(940, 595);
+            ClientSize = new Size(1074, 793);
             Controls.Add(gbZfSensorChecker);
             Controls.Add(gbZfLabel);
             Controls.Add(gbSapWorkOrderInfo);
             Controls.Add(panel1);
             Icon = (Icon)resources.GetObject("$this.Icon");
-            MinimumSize = new Size(952, 533);
+            Margin = new Padding(3, 4, 3, 4);
+            MinimumSize = new Size(1085, 695);
             Name = "HSCMainForm";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Sensor Checker";
