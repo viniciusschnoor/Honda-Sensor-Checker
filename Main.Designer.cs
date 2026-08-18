@@ -524,7 +524,7 @@
             listBoxReadedSensors.Location = new Point(7, 312);
             listBoxReadedSensors.Margin = new Padding(3, 4, 3, 4);
             listBoxReadedSensors.Name = "listBoxReadedSensors";
-            listBoxReadedSensors.Size = new Size(306, 64);
+            listBoxReadedSensors.Size = new Size(306, 84);
             listBoxReadedSensors.TabIndex = 3;
             // 
             // label7

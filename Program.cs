@@ -45,6 +45,17 @@ namespace HondaSensorChecker
             return Host.CreateDefaultBuilder()
                 .ConfigureServices((context, services) =>
                 {
+                    var accSection = context.Configuration.GetSection("Acc");
+                    var accSettings = new HondaSensorChecker.Configuration.AccSettings
+                    {
+                        IpAddress = accSection["IpAddress"] ?? string.Empty,
+                        Port = int.TryParse(accSection["Port"], out var accPort) ? accPort : 0,
+                        DllVersion = accSection["DllVersion"] ?? string.Empty,
+                        ProductType = accSection["ProductType"] ?? string.Empty,
+                        Station = accSection["Station"] ?? string.Empty
+                    };
+                    services.AddSingleton(accSettings);
+
                     // ============================
                     // DbContext
                     // ============================

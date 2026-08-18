@@ -9,6 +9,7 @@ namespace HondaSensorChecker
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFinishedBoxFactory _finishedBoxFactory;
         private readonly IServiceProvider _serviceProvider;
+        private readonly Configuration.AccSettings _accSettings;
 
         // Session/user context
         private readonly string _loggedWindowsUser = NormalizeUserName(Environment.UserName).ToUpperInvariant();
@@ -32,15 +33,20 @@ namespace HondaSensorChecker
         private string _previousSupplierBoxUniqueNumber = string.Empty;
         private bool _allowSupplierBoxOverdraw = false;
         private bool _overdrawLogged = false;
+        private int? _lockedBoxProductId;
+        private string _lockedBoxPartNumber = string.Empty;
+        private int? _currentAccPartTypeId;
 
         public HSCMainForm(
             IUnitOfWork unitOfWork,
             IFinishedBoxFactory finishedBoxFactory,
-            IServiceProvider serviceProvider)
+            IServiceProvider serviceProvider,
+            Configuration.AccSettings accSettings)
         {
             _unitOfWork = unitOfWork;
             _finishedBoxFactory = finishedBoxFactory;
             _serviceProvider = serviceProvider;
+            _accSettings = accSettings;
 
             InitializeComponent();
         }
@@ -80,6 +86,9 @@ namespace HondaSensorChecker
             _currentWorkOrder = null;
             _currentSupplierBox = null;
             _currentZfBox = null;
+            _lockedBoxProductId = null;
+            _lockedBoxPartNumber = string.Empty;
+            _currentAccPartTypeId = null;
 
             _scannedSensors.Clear();
             _sensorCounter = 0;
@@ -390,6 +399,17 @@ namespace HondaSensorChecker
                     return;
                 }
 
+                if (_lockedBoxProductId.HasValue &&
+                    (supplierProduct.ProductId != _lockedBoxProductId.Value ||
+                     !string.Equals(supplierProduct.StartPartNumber, _lockedBoxPartNumber,
+                         StringComparison.OrdinalIgnoreCase)))
+                {
+                    ShowSupplierBoxWarningKeepFlow(
+                        $"PARTNUMBER INVÁLIDO. ESPERADO: {_lockedBoxPartNumber}",
+                        "TROCA DE SUPPLIER BOX");
+                    return;
+                }
+
                 _currentSupplierBox = existingSupplierBox;
                 _currentProduct = supplierProduct;
                 _allowSupplierBoxOverdraw = false;
@@ -451,6 +471,18 @@ namespace HondaSensorChecker
             if (supplierProduct.ProductId != _currentWorkOrder.ProductId)
             {
                 ShowSupplierBoxWarningKeepFlow("PARTNUMBER DESTA CAIXA NÃO COINCIDE COM O PARTNUMBER DA WORK-ORDER", "LOGISTIC LABEL");
+                return;
+            }
+
+
+            if (_lockedBoxProductId.HasValue &&
+                (supplierProduct.ProductId != _lockedBoxProductId.Value ||
+                 !string.Equals(supplierProduct.StartPartNumber, _lockedBoxPartNumber,
+                     StringComparison.OrdinalIgnoreCase)))
+            {
+                ShowSupplierBoxWarningKeepFlow(
+                    $"PARTNUMBER INVÁLIDO. ESPERADO: {_lockedBoxPartNumber}",
+                    "TROCA DE SUPPLIER BOX");
                 return;
             }
 
@@ -538,7 +570,7 @@ namespace HondaSensorChecker
             CleanForm();
         }
 
-        private void btnLogisticLabelOk_Click(object sender, EventArgs e)
+        private async void btnLogisticLabelOk_Click(object sender, EventArgs e)
         {
             if (_currentWorkOrder == null || _currentProduct == null || _currentSupplierBox == null)
             {
@@ -564,6 +596,9 @@ namespace HondaSensorChecker
             txtQtySupplied.Text = $"Q{_runtimeSupplierBoxRemaining}";
 
             if (!EnsureSupplierBoxHasAvailableStock(sbDb, reason: "zero_before_start"))
+                return;
+
+            if (_currentAccPartTypeId == null && !await TryPerformAccChangeoverAsync())
                 return;
 
             // Se houver saldo suficiente, não faz nada e deixa continuar.
@@ -647,6 +682,94 @@ namespace HondaSensorChecker
             lblCheckResult.Text = "POSICIONE O SENSOR E ESCANEIE O SERIAL";
 
             txtComponentSerial.Focus();
+        }
+
+        private async Task<bool> TryPerformAccChangeoverAsync()
+        {
+            if (_currentProduct == null)
+                return false;
+
+            var rawPartNumber = (txtStartPartNumber.Text ?? string.Empty).Trim().ToUpperInvariant();
+            if (rawPartNumber.Length < 2 || rawPartNumber[0] != 'P')
+            {
+                ShowSupplierBoxWarningKeepFlow("CONFIRA O PARTNUMBER", "ACC CHANGEOVER");
+                return false;
+            }
+
+            var partNumber = rawPartNumber[1..];
+            if (!string.Equals(partNumber, _currentProduct.StartPartNumber,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                ShowSupplierBoxWarningKeepFlow(
+                    $"PARTNUMBER INVÁLIDO. ESPERADO: {_currentProduct.StartPartNumber}",
+                    "ACC CHANGEOVER");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(_accSettings.IpAddress) ||
+                _accSettings.Port is < 1 or > 65535 ||
+                string.IsNullOrWhiteSpace(_accSettings.DllVersion) ||
+                string.IsNullOrWhiteSpace(_accSettings.ProductType) ||
+                string.IsNullOrWhiteSpace(_accSettings.Station))
+            {
+                ShowAccFailure("CONFIGURAÇÃO DO ACC INCOMPLETA");
+                return false;
+            }
+
+            btnLogisticLabelOk.Enabled = false;
+            lblCheckResult.BackColor = Color.Yellow;
+            lblCheckResult.ForeColor = Color.Black;
+            lblCheckResult.Text = "CONSULTANDO PARTNUMBER NO ACC";
+
+            try
+            {
+                var partTypeId = await Task.Run(() =>
+                {
+                    using var client = ZF.ACCComm.Client.ACCCommClient.Connect(
+                        ZF.ACCComm.Utils.NetworkUtils.GetEndpoint(_accSettings.IpAddress, _accSettings.Port));
+                    var partType = client.PartTypeList(
+                            _accSettings.Station,
+                            _accSettings.ProductType,
+                            _accSettings.DllVersion)
+                        .FirstOrDefault(item => string.Equals(
+                            item.PartDesc?.Trim(), partNumber, StringComparison.OrdinalIgnoreCase));
+
+                    return partType?.PartTypeID
+                        ?? throw new InvalidOperationException(
+                            $"Part number '{partNumber}' não encontrado no ACC.");
+                });
+
+                _currentAccPartTypeId = partTypeId;
+                _lockedBoxProductId = _currentProduct.ProductId;
+                _lockedBoxPartNumber = _currentProduct.StartPartNumber;
+
+                AddLogSafe(
+                    "ACC changeover completed. " +
+                    $"PartNumber={partNumber}, PartTypeID={partTypeId}, " +
+                    $"Station={_accSettings.Station}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _currentAccPartTypeId = null;
+                ShowAccFailure(ex.Message);
+                AddLogSafe(
+                    "ACC changeover failed. " +
+                    $"PartNumber={partNumber}, Error={ex.Message}");
+                return false;
+            }
+            finally
+            {
+                btnLogisticLabelOk.Enabled = true;
+            }
+        }
+
+        private void ShowAccFailure(string message)
+        {
+            lblCheckResult.BackColor = Color.Red;
+            lblCheckResult.ForeColor = Color.White;
+            lblCheckResult.Text = $"NOK ACC\n{message}";
+            txtComponentSerial.Enabled = false;
         }
 
         // changeType é só para ajudar no log (automático vs manual etc)
@@ -766,6 +889,16 @@ namespace HondaSensorChecker
             return true;
         }
 
+        private void RestoreReservedSupplierBoxStock(int previousRemaining)
+        {
+            if (_currentSupplierBox == null)
+                return;
+
+            _runtimeSupplierBoxRemaining = previousRemaining;
+            _currentSupplierBox.QtyRemaining = _runtimeSupplierBoxRemaining;
+            txtQtySupplied.Text = $"Q{_runtimeSupplierBoxRemaining}";
+        }
+
         // ----------------------------
         // FORÇAR TROCA (NOVO BOTÃO)
         // ----------------------------
@@ -825,7 +958,7 @@ namespace HondaSensorChecker
         // SENSOR SCANNING
         // ----------------------------
 
-        private void txtComponentSerial_KeyPress(object sender, KeyPressEventArgs e)
+        private async void txtComponentSerial_KeyPress(object sender, KeyPressEventArgs e)
         {
             if (e.KeyChar != (char)Keys.Enter) return;
 
@@ -884,9 +1017,16 @@ namespace HondaSensorChecker
             }
 
             // Debita 1 unidade AGORA (reserva). Se zerou, força troca.
+            var supplierRemainingBeforeReservation = _runtimeSupplierBoxRemaining;
             if (!TryDebitOneFromSupplierBoxOrRequestChange())
             {
                 txtComponentSerial.Text = string.Empty;
+                return;
+            }
+
+            if (!await ShowSensorStatusOkAsync(serial))
+            {
+                RestoreReservedSupplierBoxStock(supplierRemainingBeforeReservation);
                 return;
             }
 
@@ -923,7 +1063,6 @@ namespace HondaSensorChecker
 
             if (_sensorCounter < _sensorLimit)
             {
-                ShowSensorStatusOk(serial);
                 txtComponentSerial.Text = string.Empty;
                 txtComponentSerial.Focus();
                 return;
@@ -1110,6 +1249,9 @@ namespace HondaSensorChecker
             _currentSupplierBox = null;
             _currentZfBox = zfBox;
             _sensorLimit = zfBox.QtyToSend;
+            _lockedBoxProductId = product.ProductId;
+            _lockedBoxPartNumber = product.StartPartNumber;
+            _currentAccPartTypeId = null;
 
             _scannedSensors.Clear();
             listBoxReadedSensors.Items.Clear();
@@ -1178,12 +1320,72 @@ namespace HondaSensorChecker
             CleanForm();
         }
 
-        private void ShowSensorStatusOk(string serial)
+        private async Task<bool> ShowSensorStatusOkAsync(string serial)
         {
-            lblCheckResult.BackColor = Color.Green;
-            lblCheckResult.ForeColor = Color.White;
-            lblCheckResult.Text = $"OK\n{serial}";
-            txtComponentSerial.Enabled = true;
+            if (_currentAccPartTypeId == null)
+            {
+                ShowAccFailure("PARTTYPEID NÃO CARREGADO");
+                return false;
+            }
+
+            txtComponentSerial.Enabled = false;
+            lblCheckResult.BackColor = Color.Yellow;
+            lblCheckResult.ForeColor = Color.Black;
+            lblCheckResult.Text = $"PROCESSANDO NO ACC\n{serial}";
+
+            try
+            {
+                var accResult = await Task.Run(() =>
+                {
+                    var serials = new[] { serial };
+                    using var client = ZF.ACCComm.Client.ACCCommClient.Connect(
+                        ZF.ACCComm.Utils.NetworkUtils.GetEndpoint(_accSettings.IpAddress, _accSettings.Port));
+
+                    var load = client.Load(
+                        _accSettings.Station,
+                        _accSettings.ProductType,
+                        _accSettings.DllVersion,
+                        _currentAccPartTypeId.Value,
+                        serials,
+                        null);
+
+                    uint? unitPartTypeId = load.UnitPartTypeID.HasValue
+                        ? checked((uint)load.UnitPartTypeID.Value)
+                        : null;
+
+                    var unload = client.Unload(
+                        _accSettings.Station,
+                        _accSettings.ProductType,
+                        _accSettings.DllVersion,
+                        _currentAccPartTypeId.Value,
+                        load.CycleID,
+                        unitPartTypeId,
+                        serials,
+                        new Dictionary<string, object>());
+
+                    return (load.CycleID, load.StatusBits, load.IsRework, unload.OtherInfo);
+                });
+
+                lblCheckResult.BackColor = Color.Green;
+                lblCheckResult.ForeColor = Color.White;
+                lblCheckResult.Text = $"OK\n{serial}";
+                txtComponentSerial.Enabled = true;
+
+                AddLogSafe(
+                    "ACC sensor completed. " +
+                    $"Serial={serial}, PartTypeID={_currentAccPartTypeId}, " +
+                    $"CycleID={accResult.CycleID}, StatusBits={accResult.StatusBits}, " +
+                    $"IsRework={accResult.IsRework}, OtherInfo={accResult.OtherInfo}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                ShowAccFailure(ex.Message);
+                AddLogSafe(
+                    "ACC sensor failed. " +
+                    $"Serial={serial}, PartTypeID={_currentAccPartTypeId}, Error={ex.Message}");
+                return false;
+            }
         }
 
         private void ShowSensorStatusNok(string message)
