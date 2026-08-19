@@ -25,6 +25,7 @@
             btnNewProduct = new Button();
             btnLogs = new Button();
             btnNewUser = new Button();
+            lblDebugMode = new Label();
             lblComponentQty = new Label();
             gbSapWorkOrderInfo = new GroupBox();
             tableLayoutPanel1 = new TableLayoutPanel();
@@ -48,6 +49,7 @@
             btnLogisticLabelOk = new Button();
             gbZfSensorChecker = new GroupBox();
             btnConsultComponent = new Button();
+            btnInterruptProcess = new Button();
             btnContinueProcess = new Button();
             btnForceChangeSupplierBox = new Button();
             btnRemoveSensor = new Button();
@@ -104,6 +106,7 @@
             panel1.Controls.Add(btnNewProduct);
             panel1.Controls.Add(btnLogs);
             panel1.Controls.Add(btnNewUser);
+            panel1.Controls.Add(lblDebugMode);
             panel1.Controls.Add(lblComponentQty);
             panel1.Controls.Add(imgZfLogo);
             panel1.Controls.Add(lblAppTitle);
@@ -149,6 +152,19 @@
             btnNewUser.UseVisualStyleBackColor = true;
             btnNewUser.Visible = false;
             btnNewUser.Click += btnNewUser_Click;
+            // 
+            // lblDebugMode
+            // 
+            lblDebugMode.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
+            lblDebugMode.Font = new Font("Segoe UI Semibold", 16F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblDebugMode.ForeColor = Color.Red;
+            lblDebugMode.Location = new Point(667, 4);
+            lblDebugMode.Name = "lblDebugMode";
+            lblDebugMode.Size = new Size(141, 67);
+            lblDebugMode.TabIndex = 7;
+            lblDebugMode.Text = "DEBUG";
+            lblDebugMode.TextAlign = ContentAlignment.MiddleRight;
+            lblDebugMode.Visible = false;
             // 
             // lblComponentQty
             // 
@@ -450,6 +466,7 @@
             // 
             gbZfSensorChecker.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             gbZfSensorChecker.Controls.Add(btnConsultComponent);
+            gbZfSensorChecker.Controls.Add(btnInterruptProcess);
             gbZfSensorChecker.Controls.Add(btnContinueProcess);
             gbZfSensorChecker.Controls.Add(btnForceChangeSupplierBox);
             gbZfSensorChecker.Controls.Add(btnRemoveSensor);
@@ -479,10 +496,24 @@
             btnConsultComponent.UseVisualStyleBackColor = true;
             btnConsultComponent.Click += btnConsultComponent_Click;
             // 
+            // btnInterruptProcess
+            // 
+            btnInterruptProcess.Enabled = false;
+            btnInterruptProcess.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnInterruptProcess.ForeColor = Color.DarkOrange;
+            btnInterruptProcess.Location = new Point(7, 176);
+            btnInterruptProcess.Margin = new Padding(3, 4, 3, 4);
+            btnInterruptProcess.Name = "btnInterruptProcess";
+            btnInterruptProcess.Size = new Size(306, 37);
+            btnInterruptProcess.TabIndex = 8;
+            btnInterruptProcess.Text = "INTERROMPER PROCESSO";
+            btnInterruptProcess.UseVisualStyleBackColor = true;
+            btnInterruptProcess.Click += btnInterruptProcess_Click;
+            // 
             // btnContinueProcess
             // 
             btnContinueProcess.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnContinueProcess.Location = new Point(7, 176);
+            btnContinueProcess.Location = new Point(7, 221);
             btnContinueProcess.Margin = new Padding(3, 4, 3, 4);
             btnContinueProcess.Name = "btnContinueProcess";
             btnContinueProcess.Size = new Size(306, 37);
@@ -495,7 +526,7 @@
             // 
             btnForceChangeSupplierBox.Enabled = false;
             btnForceChangeSupplierBox.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnForceChangeSupplierBox.Location = new Point(7, 221);
+            btnForceChangeSupplierBox.Location = new Point(7, 266);
             btnForceChangeSupplierBox.Margin = new Padding(3, 4, 3, 4);
             btnForceChangeSupplierBox.Name = "btnForceChangeSupplierBox";
             btnForceChangeSupplierBox.Size = new Size(306, 37);
@@ -507,7 +538,7 @@
             // btnRemoveSensor
             // 
             btnRemoveSensor.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            btnRemoveSensor.Location = new Point(7, 267);
+            btnRemoveSensor.Location = new Point(7, 311);
             btnRemoveSensor.Margin = new Padding(3, 4, 3, 4);
             btnRemoveSensor.Name = "btnRemoveSensor";
             btnRemoveSensor.Size = new Size(306, 37);
@@ -521,10 +552,10 @@
             listBoxReadedSensors.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
             listBoxReadedSensors.Font = new Font("Segoe UI", 9F);
             listBoxReadedSensors.FormattingEnabled = true;
-            listBoxReadedSensors.Location = new Point(7, 312);
+            listBoxReadedSensors.Location = new Point(7, 356);
             listBoxReadedSensors.Margin = new Padding(3, 4, 3, 4);
             listBoxReadedSensors.Name = "listBoxReadedSensors";
-            listBoxReadedSensors.Size = new Size(306, 84);
+            listBoxReadedSensors.Size = new Size(306, 24);
             listBoxReadedSensors.TabIndex = 3;
             // 
             // label7
@@ -560,7 +591,7 @@
             txtComponentSerial.TabIndex = 0;
             txtComponentSerial.TextAlign = HorizontalAlignment.Center;
             txtComponentSerial.Enter += txtComponentSerial_Enter;
-            txtComponentSerial.KeyPress += txtStartPartNumber_KeyPress;
+            txtComponentSerial.KeyPress += txtComponentSerial_KeyPress;
             // 
             // HSCMainForm
             // 
@@ -602,6 +633,7 @@
         private Label lblAppTitle;
         private Panel panel1;
         private Label lblComponentQty;
+        private Label lblDebugMode;
         private GroupBox gbSapWorkOrderInfo;
         private TextBox txtWorkOrderNumber;
         private ComboBox cbWorkOrderQtyToSend;
@@ -636,5 +668,6 @@
         private Button btnForceChangeSupplierBox;
         private Button btnConsultComponent;
         private Button btnContinueProcess;
+        private Button btnInterruptProcess;
     }
 }

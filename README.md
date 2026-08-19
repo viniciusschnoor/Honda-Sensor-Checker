@@ -1,6 +1,6 @@
 # Honda Sensor Checker
 
-Aplicação Windows para controlar a montagem e a expedição de caixas de sensores Honda. O sistema relaciona cada sensor à Work Order SAP, ao produto, à SupplierBox de origem, à caixa ZF de destino e ao operador responsável. Antes de aceitar um sensor, também registra o ciclo no ACC por meio dos comandos `PartTypeList`, `Load` e `Unload`.
+Aplicação Windows para controlar a montagem e a expedição de caixas de sensores Honda. O sistema relaciona cada sensor à Work Order SAP, ao produto, à SupplierBox de origem, à caixa ZF de destino e ao operador responsável. A integração ACC usa `PartTypeList` e `ChangeModel` para o changeover da Work Order e `Load`/`Unload` para cada sensor.
 
 Este documento serve como manual para Operação, Manutenção e Engenharia e descreve o comportamento implementado no código atual.
 
@@ -21,10 +21,10 @@ Este documento serve como manual para Operação, Manutenção e Engenharia e de
 O fluxo principal é:
 
 1. Identificar automaticamente o operador pelo usuário do Windows.
-2. Ler ou cadastrar a Work Order.
-3. Validar o part number final e selecionar a quantidade da caixa ZF.
-4. Ler a etiqueta da SupplierBox.
-5. Consultar o `PartTypeID` no ACC usando o part number ZF sem o prefixo `P` da etiqueta.
+2. Ler a Work Order e localizar no `PartTypeList` a descrição que contém seu número sem o prefixo `O`.
+3. Executar `ChangeModel` com o `PartTypeID` encontrado.
+4. Validar o part number final e selecionar a quantidade da caixa ZF.
+5. Ler a etiqueta da SupplierBox.
 6. Travar o produto para impedir mistura de part numbers na mesma caixa ZF.
 7. Ler cada sensor, validar duplicidade e produto, e executar `Load` e `Unload` no ACC.
 8. Registrar cada sensor aprovado no banco local.
@@ -71,6 +71,17 @@ Formato esperado:
 O + 12 caracteres
 Exemplo: O123456789012
 ```
+
+Ao sair do campo, inclusive após pressionar `Enter`, a aplicação:
+
+1. Remove o `O` inicial.
+2. Executa `PartTypeList` na estação configurada.
+3. Procura em `PartDesc`/Description um item que contenha o número da Work Order.
+4. Exige exatamente uma correspondência para evitar um changeover ambíguo.
+5. Executa `ChangeModel` com o `PartTypeID` encontrado.
+6. Guarda o `PartTypeID` e a descrição selecionada para os ciclos dos sensores.
+
+Se nenhuma ordem coincidir, se mais de uma descrição coincidir ou se o `ChangeModel` falhar, os próximos campos permanecem bloqueados e a Work Order precisa ser corrigida ou relida.
 
 ### Work Order já conhecida
 
@@ -151,22 +162,18 @@ Exemplo: Q420
 
 A quantidade precisa ser maior que zero. Após essa leitura, a SupplierBox é cadastrada no banco.
 
-## 5. Confirmar o changeover do ACC
+## 5. Confirmar a SupplierBox e liberar o processo
 
 Clique no botão verde `✓` da seção de logística.
 
-No primeiro início da caixa ZF, a aplicação:
+Na confirmação, a aplicação:
 
-1. Remove o `P` inicial do PartNumber ZF lido na etiqueta.
-2. Compara o valor com o produto local.
-3. Conecta ao servidor ACC.
-4. Executa `PartTypeList` na estação configurada.
-5. Procura o `PartDesc` correspondente, por exemplo `A013F520`.
-6. Guarda o `PartTypeID` retornado.
-7. Trava o produto durante toda a montagem da caixa ZF.
-8. Cria a caixa ZF em andamento e libera a leitura dos sensores.
+1. Confirma que o changeover ACC da Work Order está carregado.
+2. Compara o PartNumber ZF da SupplierBox com o produto local.
+3. Trava o produto durante toda a montagem da caixa ZF.
+4. Cria a caixa ZF em andamento e libera a leitura dos sensores.
 
-Se a configuração estiver incompleta, o servidor não responder ou o part number não existir no ACC, a leitura dos sensores permanecerá bloqueada.
+O botão da logística não executa `PartTypeList` nem altera o `PartTypeID`. Se o changeover da Work Order estiver ausente ou não corresponder à ordem corrente, a leitura dos sensores permanecerá bloqueada.
 
 ## 6. Ler os sensores
 
@@ -203,7 +210,11 @@ Se o ACC falhar, a reserva da SupplierBox é restaurada e o sensor não é grava
 
 ### Recuperar após um NOK
 
-Quando o painel estiver vermelho e começar com `NOK`, clique no próprio painel de resultado para limpar o campo e liberar uma nova tentativa.
+Quando o painel estiver vermelho e começar com `NOK`, clique no próprio painel de resultado para repetir a etapa que realmente falhou.
+
+- falha no `PartTypeList`, `ChangeModel` ou changeover: retorna para `txtWorkOrderNumber`;
+- falha de validação ou `Load/Unload` de um sensor: retorna para `txtComponentSerial`, desde que todo o contexto do processo ainda seja válido;
+- contexto incompleto: bloqueia a leitura do sensor e retorna para a Work Order.
 
 Não repita a leitura sem antes entender a mensagem apresentada.
 
@@ -235,7 +246,7 @@ Regras obrigatórias:
 - a nova SupplierBox deve pertencer ao mesmo produto da caixa ZF em andamento;
 - não é permitido alterar o part number;
 - o produto e o `PartTypeID` permanecem travados;
-- a troca não executa um novo changeover quando o `PartTypeID` já está carregado;
+- a troca não executa um novo changeover;
 - apenas a SupplierBox de origem e o saldo corrente são alterados.
 
 Se o saldo chegar a zero durante a produção, o programa pergunta se ainda existem sensores fisicamente na caixa:
@@ -266,15 +277,31 @@ Após a última leitura válida, a aplicação:
 - registra a finalização no log;
 - limpa a tela para a próxima Work Order.
 
-## 10. Continuar um processo interrompido
+Durante os scans, o saldo mostrado como `Q...` é apenas uma reserva operacional em memória. O campo persistido `SupplierBox.QtyRemaining` é debitado uma única vez na finalização, usando a quantidade real de sensores vinculados a cada SupplierBox. Isso evita débito duplicado em commits intermediários ou retomadas automáticas.
+
+## 10. Interromper e deixar uma caixa aguardando
+
+Use **INTERROMPER PROCESSO** quando uma caixa em andamento precisar ser temporariamente liberada da estação sem ser finalizada.
+
+1. Informe o RE de qualquer usuário cadastrado como administrador.
+2. Confirme os dados da Work Order e a quantidade já lida.
+3. Reconfirme a interrupção na última pergunta.
+
+Se qualquer etapa for cancelada, nada é alterado. Após a confirmação final, a caixa e seus sensores permanecem marcados como `Em andamento`, a tela é liberada e a ação é registrada com o operador atual e o administrador autorizador. Para retomá-la, use **CONTINUAR PROCESSO**.
+
+Além de `InProgress`, a caixa recebe o estado persistente `IsPaused`. Isso diferencia uma interrupção autorizada de um fechamento inesperado da aplicação.
+
+O botão fica desabilitado quando não há caixa em andamento ou durante uma comunicação de sensor com o ACC.
+
+## 11. Continuar um processo interrompido
 
 Use **CONTINUAR PROCESSO** somente na tela inicial, antes de iniciar outra Work Order.
 
 1. Selecione uma caixa marcada como `Em andamento`.
 2. Confirme a seleção.
 3. A aplicação recuperará Work Order, produto, meta e sensores já lidos.
-4. Leia uma SupplierBox válida para continuar.
-5. Confirme a logística; o sistema consultará novamente o `PartTypeID` no ACC.
+4. Antes de restaurar o processo, o sistema procura a Work Order no `PartTypeList` e executa novamente o `ChangeModel`.
+5. Leia uma SupplierBox válida e confirme a logística para continuar.
 
 As opções são mostradas no formato:
 
@@ -284,7 +311,19 @@ WO ... | produto final | quantidade | identificação da caixa ZF
 
 Caixas ainda sem etiqueta final aparecem como `(sem etiqueta)`.
 
-## 11. Consultar um componente
+### Retomada automática após reabertura
+
+Se a aplicação for fechada sem usar **INTERROMPER PROCESSO**, a caixa continua ativa. Na próxima abertura, o sistema automaticamente:
+
+1. identifica a caixa ativa mais recente;
+2. recupera Work Order, produto, meta, sensores e contador;
+3. executa novamente o changeover da Work Order no ACC;
+4. recupera a SupplierBox que estava em uso e recompõe o saldo operacional;
+5. libera a leitura do próximo sensor.
+
+Caixas pausadas explicitamente não são retomadas automaticamente e continuam disponíveis em **CONTINUAR PROCESSO**. Se a SupplierBox persistida não puder ser recuperada, o sistema preserva a caixa e solicita novamente a leitura da etiqueta logística.
+
+## 12. Consultar um componente
 
 1. Clique em **CONSULTAR COMPONENTE**.
 2. Digite ou leia o serial.
@@ -297,6 +336,7 @@ A consulta mostra:
 - Work Order;
 - SupplierBox;
 - caixa ZF;
+- nome do usuário que realizou o scan;
 - situação `Em andamento` ou `Finalizado`.
 
 ---
@@ -329,17 +369,39 @@ A estação precisa de:
 }
 ```
 
-A mesma `Station` é usada por `PartTypeList`, `Load` e `Unload`.
+A mesma `Station` é usada por `PartTypeList`, `ChangeModel`, `Load` e `Unload`.
 
 Após alterar o arquivo, reinicie a aplicação. As configurações são carregadas durante a criação do processo.
+
+A aplicação usa um mutex global do Windows e permite apenas uma instância por estação. Ao tentar abrir uma segunda instância, o usuário recebe uma mensagem e o segundo processo é encerrado antes de acessar o banco.
+
+### Bypass do ACC para desenvolvimento
+
+Em uma compilação `Debug`, a Work Order de teste abaixo ativa o bypass do ACC:
+
+```text
+O012345678912
+```
+
+Nesse modo, o sistema mantém as validações e o fluxo local, mas não envia `PartTypeList`, `ChangeModel`, `Load` ou `Unload` ao ACC. A ativação e cada ciclo de sensor ignorado são registrados no log como eventos de nível `Warning`.
+
+Para tornar o ambiente de teste evidente, compilações `Debug` exibem a palavra **DEBUG**, em vermelho, ao lado do contador de sensores.
+
+O bypass é protegido por compilação condicional (`#if DEBUG`). Em uma compilação `Release`, a chave e a lógica de bypass não fazem parte do executável; a mesma Work Order segue o fluxo ACC normal.
 
 ## 3. Banco de dados
 
 O banco SQLite fica em:
 
 ```text
-C:\ProgramData\HondaSensorChecker.db
+C:\ProgramData\HondaSensorChecker\Database\HondaSensorChecker.db
 ```
+
+Ao iniciar uma versão atualizada:
+
+- se existir um banco apenas em `C:\ProgramData\HondaSensorChecker.db`, a aplicação move automaticamente o banco e seus arquivos SQLite auxiliares para a nova pasta;
+- se não existir banco em nenhum dos locais, um banco novo é criado diretamente no novo caminho pelas migrations;
+- se já existir banco no novo caminho, ele é utilizado normalmente e nenhuma migração do local antigo é executada.
 
 Na inicialização, a aplicação:
 
@@ -353,7 +415,7 @@ Na inicialização, a aplicação:
 Antes de manutenção, atualização ou troca de computador:
 
 1. Feche a aplicação.
-2. Copie `C:\ProgramData\HondaSensorChecker.db` para um local controlado.
+2. Copie `C:\ProgramData\HondaSensorChecker\Database\HondaSensorChecker.db` para um local controlado.
 3. Registre data, máquina e versão da aplicação.
 
 Não copie o banco enquanto uma finalização ou leitura estiver sendo gravada.
@@ -386,27 +448,31 @@ Um teste TCP positivo não garante que a estação `10.1` ou o produto estejam c
 
 Confira todos os campos de `Acc` no `appsettings.json`. IP vazio, porta fora de `1..65535`, versão, tipo de produto ou estação vazios bloqueiam o processo.
 
-### Part number não encontrado no ACC
+### Work Order não encontrada no ACC
 
-- confirme o valor da etiqueta sem o `P` inicial;
-- confirme o ZF PartNumber no cadastro local;
+- confirme o número da Work Order sem o `O` inicial;
+- confirme que esse número aparece no campo Description/`PartDesc` do cadastro ACC;
 - confirme `ProductType` e `Station` no servidor ACC;
 - consulte o `PartTypeList` no ambiente ACC;
-- verifique espaços ou divergências de cadastro.
+- verifique se existe exatamente uma correspondência.
+
+### Work Order possui múltiplas correspondências
+
+Mais de um `PartDesc` contém o mesmo número. O sistema bloqueia o changeover para não selecionar um `PartTypeID` arbitrariamente. Corrija o cadastro no ACC.
 
 ### `NOK ACC` durante sensor
 
 - verifique rede e serviço ACC;
-- confirme que o changeover foi concluído;
+- confirme que o changeover da Work Order foi concluído;
 - confira a mensagem técnica exibida e o log;
 - não force gravações diretamente no banco;
 - após corrigir a causa, clique no painel NOK e releia o sensor.
 
 ### `PARTTYPEID NÃO CARREGADO`
 
-- volte ao fluxo de SupplierBox;
-- confirme a logística no botão verde;
-- se o processo foi retomado, releia uma SupplierBox para refazer a consulta ao ACC.
+- volte ao campo da Work Order e provoque novamente sua validação;
+- confirme que a Description do `PartTypeList` contém a ordem;
+- em uma retomada, selecione novamente a caixa para repetir o changeover.
 
 ### Sensor duplicado
 
@@ -435,25 +501,67 @@ Não existe nenhuma `ZfBox` com `InProgress = true`. Verifique se a caixa foi fi
 
 ## 6. Logs disponíveis
 
+O sistema usa dois tipos complementares de log.
+
+### Auditoria no banco
+
 Administradores podem abrir **LOGS**. A tela ordena as entradas da mais recente para a mais antiga e mostra:
 
 - data e hora;
 - operador;
 - descrição.
 
+A tela permite pesquisar pela descrição ou pelo operador, filtrar por operador e período e consultar a mensagem completa no painel de detalhes. O contador no cabeçalho mostra quantos registros atendem aos filtros selecionados.
+
 Eventos registrados incluem:
 
 - criação de Work Order;
 - criação, alteração e exclusão de produtos ou usuários;
 - criação de SupplierBox;
-- changeover ACC bem-sucedido ou com falha;
+- consulta e changeover da Work Order no ACC, com sucesso ou falha;
 - `Load/Unload` ACC bem-sucedido ou com falha;
 - solicitação e confirmação de troca de SupplierBox;
 - zeragem e uso além do saldo;
 - remoção de sensor como scrap;
 - finalização da caixa ZF.
 
-O registro de log usa uma rotina tolerante a falhas. Uma falha ao gravar log não interrompe necessariamente o processo principal.
+Esses registros permanecem no SQLite porque fazem parte da rastreabilidade operacional e mantêm vínculo com o operador.
+
+### Log técnico em arquivo
+
+O diagnóstico detalhado da aplicação fica em:
+
+```text
+C:\ProgramData\HondaSensorChecker\Logs\
+```
+
+É criado um arquivo por dia:
+
+```text
+HondaSensorChecker-AAAA-MM-DD.log
+```
+
+O arquivo é texto UTF-8 e cada evento possui um bloco legível contendo:
+
+- data e hora com fuso;
+- nível (`Debug`, `Information`, `Warning`, `Error` ou `Critical`);
+- nome estável do evento;
+- mensagem;
+- máquina, usuário Windows, processo e thread;
+- operador, Work Order, produto, SupplierBox, ZfBox e contadores, quando disponíveis;
+- endpoint, estação, `PartTypeID` e description do ACC;
+- tipo, mensagem e stack trace completo da exceção.
+
+O arquivo registra também inicialização, encerramento normal, falhas globais não tratadas, validações rejeitadas, cliques de retomada no painel NOK e falhas ao gravar a própria auditoria no banco.
+
+Os arquivos são mantidos por 90 dias. Uma falha no log técnico ou na auditoria não deve derrubar o processo principal.
+
+### Por que manter arquivo e banco
+
+- banco: auditoria e rastreabilidade ligada às entidades do processo;
+- arquivo: diagnóstico técnico detalhado, inclusive quando o banco está indisponível;
+- manter somente o arquivo perderia as relações estruturadas com operador e processo;
+- manter somente o banco dificultaria investigar stack traces, falhas de inicialização e problemas do próprio SQLite.
 
 ---
 
@@ -488,7 +596,7 @@ Cada produto possui:
 | Campo | Uso |
 |---|---|
 | Prefix | Quatro primeiros caracteres do serial do sensor |
-| ZF PartNumber | Part number inicial/SupplierBox e busca no `PartTypeList` |
+| ZF PartNumber | Part number inicial usado para validar a SupplierBox |
 | ELSEN/ELMOD | Part number final da Work Order e da caixa ZF |
 
 Regras de criação:
@@ -526,7 +634,7 @@ Isso permite rastrear o caminho completo do componente desde a SupplierBox até 
 ## 4. Regras de integridade do processo
 
 - uma caixa ZF possui um único produto e uma única Work Order;
-- o produto é travado após o changeover ACC;
+- o `PartTypeID` é determinado pela Work Order e o produto é travado ao confirmar a SupplierBox;
 - a troca de SupplierBox não pode mudar o produto;
 - o serial não pode ser reutilizado em outra caixa;
 - todos os sensores da caixa devem atingir a quantidade selecionada antes da finalização;
@@ -548,18 +656,20 @@ Consequências:
 
 ## 6. Integração ACC
 
-### Changeover
+### Changeover pela Work Order
 
-No primeiro `btnLogisticLabelOk` sem `PartTypeID` carregado:
+No evento `Leave` de `txtWorkOrderNumber`:
 
 ```text
-Etiqueta: PA013F520
-Valor consultado: A013F520
+Etiqueta: O123456789012
+Valor procurado: 123456789012
 Comando: PartTypeList(Station, ProductType, DllVersion)
-Resultado utilizado: PartTypeID do item cujo PartDesc coincide
+Filtro: PartDesc contém o número da Work Order
+Resultado exigido: exatamente uma correspondência
+Comando de troca: ChangeModel(Station, ProductType, DllVersion, PartTypeID)
 ```
 
-O `PartTypeID` fica somente em memória. Ao retomar uma caixa após reiniciar a aplicação, a consulta é executada novamente.
+O `PartTypeID` e o `PartDesc` escolhido ficam somente em memória. O botão da SupplierBox apenas verifica que a descrição carregada continua correspondendo à Work Order atual. Ao retomar uma caixa após reiniciar a aplicação, `PartTypeList` e `ChangeModel` são executados novamente antes de restaurar o processo.
 
 ### Ciclo do sensor
 
@@ -601,6 +711,8 @@ Entidades:
 | Sensor | Unidade rastreada e seus relacionamentos |
 | Log | Auditoria operacional e administrativa |
 
+O log técnico em arquivo não é uma entidade do banco; ele é produzido pelo `ApplicationFileLogger` em texto estruturado para leitura direta no Bloco de Notas ou em qualquer editor de logs.
+
 ## 8. Estrutura do código
 
 ```text
@@ -611,6 +723,7 @@ Windows/ContinueProcessDialog   Seleção de caixas em andamento
 Windows/Users.cs                Administração de operadores
 Windows/Products.cs             Administração de produtos
 Windows/Logs.cs                 Consulta de auditoria
+Logging/ApplicationFileLogger  Log técnico diário, exceções e retenção
 Data/Context                    DbContext e relacionamentos
 Data/Repositories               Repositórios e Unit of Work
 Models                          Entidades persistidas
@@ -656,7 +769,7 @@ Antes de liberar uma versão:
 - confirme os parâmetros do ACC do ambiente destino;
 - verifique a presença da DLL ACC;
 - faça backup do banco da estação;
-- teste um produto válido no `PartTypeList`;
+- teste uma Work Order válida no `PartTypeList` e o respectivo `ChangeModel`;
 - teste `Load/Unload` em ambiente autorizado;
 - teste retomada de processo;
 - teste troca de SupplierBox do mesmo produto e rejeição de produto diferente;
@@ -672,7 +785,7 @@ Antes de liberar uma versão:
 | Work Order | `O` + 12 caracteres | `O123456789012` | 12 caracteres sem `O` |
 | PartNumber Final | `P` + 10 ou 11 caracteres | `PELMOD00660` | sem `P` |
 | Número único SupplierBox | `S` + 10 caracteres | `S1234567890` | 10 caracteres sem `S` |
-| ZF PartNumber | `P` + 8 caracteres | `PA013F520` | sem `P`; usado no ACC |
+| ZF PartNumber | `P` + 8 caracteres | `PA013F520` | sem `P`; valida a SupplierBox |
 | Quantidade SupplierBox | `Q` + 3 dígitos | `Q420` | inteiro positivo |
 | Serial do sensor | 9 caracteres | conforme produto | completo; prefixo = 4 primeiros |
 | Número caixa final | `1J` + 10 caracteres | `1J1234567890` | 10 caracteres sem `1J` |
@@ -692,8 +805,9 @@ Todas as entradas são aparadas e convertidas para maiúsculas antes da validaç
 | `PARTNUMBER NÃO REGISTRADO` | Produto final ou ZF PN ausente | Acionar Engenharia |
 | `PARTNUMBER ... NÃO COINCIDE` | SupplierBox de outro produto | Separar material e ler caixa correta |
 | `CONFIGURAÇÃO DO ACC INCOMPLETA` | Campo ACC ausente/inválido | Corrigir `appsettings.json` e reiniciar |
-| `Part number ... não encontrado no ACC` | `PartDesc` ausente ou contexto ACC incorreto | Conferir cadastro, station e product type |
-| `PARTTYPEID NÃO CARREGADO` | Changeover não concluído | Confirmar novamente a logística |
+| `Work Order ... não encontrada no PartTypeList` | Nenhum `PartDesc` contém a ordem | Conferir cadastro, station e product type |
+| `Work Order ... possui ... correspondências` | Busca ambígua no ACC | Corrigir descriptions duplicadas/sobrepostas |
+| `PARTTYPEID NÃO CARREGADO` | Changeover da Work Order não concluído | Validar novamente a Work Order |
 | `NOK ACC` | Erro de conexão ou comando | Ver mensagem, rede, servidor e logs |
 | `JÁ FOI EXPEDIDO EM OUTRA CAIXA` | Serial já existe no banco | Consultar componente e segregar peça |
 | `JÁ FOI LIDO NESTA MESMA CAIXA` | Leitura duplicada local | Não repetir; conferir lista |
@@ -785,37 +899,25 @@ A propriedade `Private=true` faz a DLL ser copiada para a saída. A referência 
 
 Os itens abaixo foram identificados no mapeamento do código atual e devem ser avaliados antes da liberação produtiva.
 
-## 1. Evento do campo de serial
-
-No `Main.Designer.cs`, o evento `KeyPress` de `txtComponentSerial` está associado a `txtStartPartNumber_KeyPress`, embora o fluxo correto esteja implementado em `txtComponentSerial_KeyPress`.
-
-Associação esperada:
-
-```csharp
-txtComponentSerial.KeyPress += txtComponentSerial_KeyPress;
-```
-
-Sem essa correção, a leitura do sensor pode ser tratada como leitura de PartNumber ZF e o ciclo do ACC não será iniciado pelo campo correto.
-
-## 2. Prefixo inicial duplicado
+## 1. Prefixo inicial duplicado
 
 O seed inicial contém dois produtos com o prefixo `C2PK`. A identificação do produto do sensor usa apenas os quatro primeiros caracteres e seleciona o primeiro registro encontrado.
 
 Antes da produção, cada modelo precisa ter um prefixo de sensor inequívoco ou a regra de identificação deve usar mais dados do serial.
 
-## 3. Confirmação funcional do `Unload`
+## 2. Confirmação funcional do `Unload`
 
 O `Unload` atual envia um `Dictionary<string, object>` vazio. Isso deve ser validado contra a configuração real da estação `10.1` e os requisitos de resultados do processo SENSOR.
 
-## 4. Critério de aprovação do ACC
+## 3. Critério de aprovação do ACC
 
 O código considera o ciclo aprovado quando `Load` e `Unload` terminam sem lançar exceção. Engenharia deve confirmar se `StatusBits`, `OtherInfo` ou outro campo de retorno precisa participar da decisão de aprovação.
 
-## 5. ACC e remoção por scrap
+## 4. ACC e remoção por scrap
 
 A remoção por scrap exclui o sensor local em andamento, mas não envia uma reversão ao ACC. O procedimento de qualidade para esse cenário deve ser definido.
 
-## 6. Falha local após sucesso no ACC
+## 5. Falha local após sucesso no ACC
 
 O ACC é concluído antes da gravação final do sensor no SQLite. Se houver falha de banco após `Unload`, o ACC poderá conter o ciclo aprovado sem o registro local correspondente. O procedimento de reconciliação deve ser definido pela Engenharia.
 
@@ -831,11 +933,11 @@ O ACC é concluído antes da gravação final do sensor no SQLite. Se houver fal
 - [ ] `appsettings.json` revisado para o ambiente.
 - [ ] `ZF.ACCComm.dll` presente na saída.
 - [ ] Conectividade TCP com o ACC validada.
-- [ ] `PartTypeList` encontra o ZF PartNumber sem `P`.
+- [ ] `PartTypeList` encontra exatamente uma Description contendo a Work Order sem `O`.
+- [ ] `ChangeModel` conclui com o `PartTypeID` encontrado.
 - [ ] `Load/Unload` validados com a estação `10.1`.
 - [ ] Leitura do sensor associada ao handler correto.
 - [ ] Troca de SupplierBox rejeita produto diferente.
 - [ ] Retomada de processo testada.
 - [ ] Finalização e débito de múltiplas SupplierBoxes testados.
 - [ ] Consulta de componente e logs verificados.
-

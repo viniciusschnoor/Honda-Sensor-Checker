@@ -26,6 +26,8 @@ namespace HondaSensorChecker
             ZfBox zfBox)
         {
             InitializeComponent();
+            UiTheme.StyleForm(this);
+            UiTheme.StylePrimaryButton(button1, UiTheme.Success);
 
             _unitOfWork = unitOfWork;
             _operatorId = operatorId;
@@ -271,9 +273,35 @@ namespace HondaSensorChecker
 
             if (!_unitOfWork.Commit(out error))
             {
+                Logging.ApplicationFileLogger.Error(
+                    "Database.FinishedBoxCommitFailed",
+                    "Unable to commit the finished box.",
+                    context: new Dictionary<string, object?>
+                    {
+                        ["OperatorId"] = _operatorId,
+                        ["WorkOrderId"] = _workOrderId,
+                        ["ProductId"] = _productId,
+                        ["ZfBoxId"] = _zfBoxId,
+                        ["DatabaseError"] = error
+                    });
                 MessageBox.Show(error, "Commit error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
+
+            Logging.ApplicationFileLogger.Information(
+                "Process.FinishedBoxCompleted",
+                "Finished box was persisted successfully.",
+                new Dictionary<string, object?>
+                {
+                    ["OperatorId"] = _operatorId,
+                    ["WorkOrderId"] = _workOrderId,
+                    ["ProductId"] = _productId,
+                    ["ZfBoxId"] = _zfBoxId,
+                    ["UniqueNumber"] = _zfBox.UniqueNumber,
+                    ["Batch"] = _zfBox.Batch,
+                    ["SensorCount"] = sensorsDb.Count,
+                    ["SupplierBoxesUsed"] = supplierBoxesUsed
+                });
 
             return true;
         }

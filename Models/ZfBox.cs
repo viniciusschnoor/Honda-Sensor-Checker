@@ -11,6 +11,8 @@ namespace HondaSensorChecker.Models
         public string UniqueNumber { get; set; }
         public string? Batch { get; set; }
         public bool InProgress { get; set; }
+        public bool IsPaused { get; set; }
+        public int? CurrentSupplierBoxId { get; set; }
         public int ProductId { get; set; }
         public Product Product { get; set; }
         public int SapWorkOrderId { get; set; }

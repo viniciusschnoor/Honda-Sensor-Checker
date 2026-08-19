@@ -1,198 +1,55 @@
-﻿namespace HondaSensorChecker
+namespace HondaSensorChecker
 {
     partial class FinishedBox
     {
-        /// <summary>
-        /// Required designer variable.
-        /// </summary>
         private System.ComponentModel.IContainer components = null;
+        private Panel pnlHeader, pnlContent;
+        private TextBox txtUniqueNumber, txtMaterialNumber, txtWorkOrder, txtBatch;
+        private Label label1, lblSubtitle, label2, label3, label4, label5;
+        private Button button1;
 
-        /// <summary>
-        /// Clean up any resources being used.
-        /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
-            {
-                components.Dispose();
-            }
+            if (disposing && components != null) components.Dispose();
             base.Dispose(disposing);
         }
 
-        #region Windows Form Designer generated code
-
-        /// <summary>
-        /// Required method for Designer support - do not modify
-        /// the contents of this method with the code editor.
-        /// </summary>
         private void InitializeComponent()
         {
-            txtUniqueNumber = new TextBox();
-            label1 = new Label();
-            label2 = new Label();
-            label3 = new Label();
-            txtMaterialNumber = new TextBox();
-            label4 = new Label();
-            txtWorkOrder = new TextBox();
-            label5 = new Label();
-            txtBatch = new TextBox();
-            button1 = new Button();
-            SuspendLayout();
-            // 
-            // txtUniqueNumber
-            // 
-            txtUniqueNumber.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            txtUniqueNumber.Font = new Font("Segoe UI", 18F);
-            txtUniqueNumber.Location = new Point(12, 147);
-            txtUniqueNumber.Name = "txtUniqueNumber";
-            txtUniqueNumber.Size = new Size(576, 39);
-            txtUniqueNumber.TabIndex = 1;
-            txtUniqueNumber.TextAlign = HorizontalAlignment.Center;
-            txtUniqueNumber.KeyPress += txtUniqueNumber_KeyPress;
-            // 
-            // label1
-            // 
-            label1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            label1.Font = new Font("Segoe UI", 30F, FontStyle.Bold);
-            label1.ForeColor = Color.White;
-            label1.Location = new Point(12, 9);
-            label1.Name = "label1";
-            label1.Size = new Size(576, 75);
-            label1.TabIndex = 2;
-            label1.Text = "CAIXA FINALIZADA";
-            label1.TextAlign = ContentAlignment.MiddleCenter;
-            // 
-            // label2
-            // 
-            label2.AutoSize = true;
-            label2.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-            label2.ForeColor = Color.White;
-            label2.Location = new Point(12, 123);
-            label2.Name = "label2";
-            label2.Size = new Size(122, 21);
-            label2.TabIndex = 3;
-            label2.Text = "Número Único";
-            // 
-            // label3
-            // 
-            label3.AutoSize = true;
-            label3.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-            label3.ForeColor = Color.White;
-            label3.Location = new Point(12, 209);
-            label3.Name = "label3";
-            label3.Size = new Size(141, 21);
-            label3.TabIndex = 5;
-            label3.Text = "Número Material";
-            // 
-            // txtMaterialNumber
-            // 
-            txtMaterialNumber.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            txtMaterialNumber.Enabled = false;
-            txtMaterialNumber.Font = new Font("Segoe UI", 18F);
-            txtMaterialNumber.Location = new Point(12, 233);
-            txtMaterialNumber.Name = "txtMaterialNumber";
-            txtMaterialNumber.Size = new Size(576, 39);
-            txtMaterialNumber.TabIndex = 4;
-            txtMaterialNumber.TextAlign = HorizontalAlignment.Center;
-            txtMaterialNumber.KeyPress += txtMaterialNumber_KeyPress;
-            // 
-            // label4
-            // 
-            label4.AutoSize = true;
-            label4.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-            label4.ForeColor = Color.White;
-            label4.Location = new Point(12, 295);
-            label4.Name = "label4";
-            label4.Size = new Size(152, 21);
-            label4.TabIndex = 7;
-            label4.Text = "Número da Ordem";
-            // 
-            // txtWorkOrder
-            // 
-            txtWorkOrder.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            txtWorkOrder.Enabled = false;
-            txtWorkOrder.Font = new Font("Segoe UI", 18F);
-            txtWorkOrder.Location = new Point(12, 319);
-            txtWorkOrder.Name = "txtWorkOrder";
-            txtWorkOrder.Size = new Size(576, 39);
-            txtWorkOrder.TabIndex = 6;
-            txtWorkOrder.TextAlign = HorizontalAlignment.Center;
-            txtWorkOrder.KeyPress += txtWorkOrder_KeyPress;
-            // 
-            // label5
-            // 
-            label5.AutoSize = true;
-            label5.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-            label5.ForeColor = Color.White;
-            label5.Location = new Point(12, 381);
-            label5.Name = "label5";
-            label5.Size = new Size(43, 21);
-            label5.TabIndex = 8;
-            label5.Text = "Lote";
-            // 
-            // txtBatch
-            // 
-            txtBatch.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            txtBatch.Enabled = false;
-            txtBatch.Font = new Font("Segoe UI", 18F);
-            txtBatch.Location = new Point(12, 405);
-            txtBatch.Name = "txtBatch";
-            txtBatch.Size = new Size(576, 39);
-            txtBatch.TabIndex = 9;
-            txtBatch.TextAlign = HorizontalAlignment.Center;
-            txtBatch.KeyPress += txtBatch_KeyPress;
-            // 
-            // button1
-            // 
-            button1.Enabled = false;
-            button1.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-            button1.ForeColor = Color.Green;
-            button1.Location = new Point(12, 470);
-            button1.Name = "button1";
-            button1.Size = new Size(576, 51);
-            button1.TabIndex = 10;
-            button1.Text = "FINALIZAR";
-            button1.UseVisualStyleBackColor = true;
-            // 
-            // FinishedBox
-            // 
-            AutoScaleDimensions = new SizeF(7F, 15F);
-            AutoScaleMode = AutoScaleMode.Font;
-            AutoSize = true;
-            BackColor = Color.Green;
-            ClientSize = new Size(600, 600);
-            Controls.Add(button1);
-            Controls.Add(txtBatch);
-            Controls.Add(label5);
-            Controls.Add(label4);
-            Controls.Add(txtWorkOrder);
-            Controls.Add(label3);
-            Controls.Add(txtMaterialNumber);
-            Controls.Add(label2);
-            Controls.Add(label1);
-            Controls.Add(txtUniqueNumber);
-            FormBorderStyle = FormBorderStyle.None;
-            MdiChildrenMinimizedAnchorBottom = false;
-            MinimizeBox = false;
-            Name = "FinishedBox";
-            StartPosition = FormStartPosition.CenterScreen;
-            Text = "FinishedBox";
-            ResumeLayout(false);
-            PerformLayout();
+            pnlHeader = new Panel(); pnlContent = new Panel(); txtUniqueNumber = new TextBox(); txtMaterialNumber = new TextBox();
+            txtWorkOrder = new TextBox(); txtBatch = new TextBox(); label1 = new Label(); lblSubtitle = new Label(); label2 = new Label();
+            label3 = new Label(); label4 = new Label(); label5 = new Label(); button1 = new Button();
+            pnlHeader.SuspendLayout(); pnlContent.SuspendLayout(); SuspendLayout();
+
+            pnlHeader.BackColor = Color.FromArgb(25, 126, 75); pnlHeader.Dock = DockStyle.Top; pnlHeader.Height = 105; pnlHeader.Controls.AddRange(new Control[] { label1, lblSubtitle });
+            label1.AutoSize = true; label1.Font = new Font("Segoe UI Semibold", 24F, FontStyle.Bold); label1.ForeColor = Color.White; label1.Location = new Point(26, 15); label1.Text = "Caixa finalizada";
+            lblSubtitle.AutoSize = true; lblSubtitle.ForeColor = Color.FromArgb(220, 244, 231); lblSubtitle.Location = new Point(31, 64); lblSubtitle.Text = "Confira a etiqueta final lendo os campos na sequência indicada";
+
+            pnlContent.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right; pnlContent.BackColor = Color.White;
+            pnlContent.Location = new Point(24, 127); pnlContent.Size = new Size(552, 445); pnlContent.Controls.AddRange(new Control[] { label2, txtUniqueNumber, label3, txtMaterialNumber, label4, txtWorkOrder, label5, txtBatch, button1 });
+            ConfigureLabel(label2, "1   NÚMERO ÚNICO", 24, 20); ConfigureInput(txtUniqueNumber, 24, 45); txtUniqueNumber.KeyPress += txtUniqueNumber_KeyPress;
+            ConfigureLabel(label3, "2   NÚMERO MATERIAL", 24, 104); ConfigureInput(txtMaterialNumber, 24, 129); txtMaterialNumber.Enabled = false; txtMaterialNumber.KeyPress += txtMaterialNumber_KeyPress;
+            ConfigureLabel(label4, "3   NÚMERO DA ORDEM", 24, 188); ConfigureInput(txtWorkOrder, 24, 213); txtWorkOrder.Enabled = false; txtWorkOrder.KeyPress += txtWorkOrder_KeyPress;
+            ConfigureLabel(label5, "4   LOTE", 24, 272); ConfigureInput(txtBatch, 24, 297); txtBatch.Enabled = false; txtBatch.KeyPress += txtBatch_KeyPress;
+            button1.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom; button1.Enabled = false; button1.Location = new Point(24, 376); button1.Size = new Size(504, 44);
+            button1.Text = "FINALIZAÇÃO AUTOMÁTICA APÓS A ÚLTIMA LEITURA";
+
+            AutoScaleDimensions = new SizeF(7F, 15F); AutoScaleMode = AutoScaleMode.Font; BackColor = Color.FromArgb(237, 242, 239); ClientSize = new Size(600, 600);
+            Controls.Add(pnlContent); Controls.Add(pnlHeader); FormBorderStyle = FormBorderStyle.None; MinimizeBox = false; Name = "FinishedBox";
+            StartPosition = FormStartPosition.CenterScreen; Text = "Finalizar caixa";
+            pnlHeader.ResumeLayout(false); pnlHeader.PerformLayout(); pnlContent.ResumeLayout(false); pnlContent.PerformLayout(); ResumeLayout(false);
         }
 
-        #endregion
+        private static void ConfigureLabel(Label label, string text, int x, int y)
+        {
+            label.AutoSize = true; label.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold); label.ForeColor = Color.FromArgb(65, 78, 70);
+            label.Location = new Point(x, y); label.Text = text;
+        }
 
-        private TextBox txtUniqueNumber;
-        private Label label1;
-        private Label label2;
-        private Label label3;
-        private TextBox txtMaterialNumber;
-        private Label label4;
-        private TextBox txtWorkOrder;
-        private Label label5;
-        private TextBox txtBatch;
-        private Button button1;
+        private static void ConfigureInput(TextBox input, int x, int y)
+        {
+            input.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right; input.BorderStyle = BorderStyle.FixedSingle;
+            input.Font = new Font("Segoe UI", 16F); input.Location = new Point(x, y); input.Size = new Size(504, 36); input.TextAlign = HorizontalAlignment.Center;
+        }
     }
 }

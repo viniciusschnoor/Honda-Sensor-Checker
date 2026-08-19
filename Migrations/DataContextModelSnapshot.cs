@@ -190,7 +190,13 @@ namespace HondaSensorChecker.Migrations
                     b.Property<string>("Batch")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("CurrentSupplierBoxId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("InProgress")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsPaused")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("OperatorId")

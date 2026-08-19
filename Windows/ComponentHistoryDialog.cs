@@ -14,6 +14,8 @@ namespace HondaSensorChecker
         public ComponentHistoryDialog()
         {
             InitializeComponent();
+            UiTheme.StyleForm(this);
+            UiTheme.StylePrimaryButton(btnSearch);
         }
 
         // ✅ Usado em runtime
@@ -63,11 +65,13 @@ namespace HondaSensorChecker
             var workOrder = _unitOfWork.SapWorkOrders.GetById(sensor.SapWorkOrderId);
             var supplierBox = _unitOfWork.SupplierBoxes.GetById(sensor.SupplierBoxId);
             var zfBox = _unitOfWork.ZfBoxes.GetById(sensor.ZfBoxId);
+            var scanOperator = _unitOfWork.Operators.GetById(sensor.OperatorId);
 
             var workOrderNumber = workOrder?.WorkOrderNumber ?? "N/D";
             var supplierNumber = supplierBox?.UniqueNumber ?? "N/D";
             var zfNumber = string.IsNullOrWhiteSpace(zfBox?.UniqueNumber) ? "(em andamento)" : zfBox.UniqueNumber;
             var status = sensor.InProgress ? "Em andamento" : "Finalizado";
+            var operatorName = scanOperator?.Name ?? scanOperator?.Re ?? scanOperator?.ZfId ?? "N/D";
 
             var item = new ListViewItem(new[]
             {
@@ -76,6 +80,7 @@ namespace HondaSensorChecker
                 workOrderNumber,
                 supplierNumber,
                 zfNumber,
+                operatorName,
                 status
             });
 

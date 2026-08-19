@@ -20,6 +20,10 @@ namespace HondaSensorChecker
             _unitOfWork = unitOfWork;
             _operatorId = operatorId;
             InitializeComponent();
+            UiTheme.StyleForm(this);
+            UiTheme.StyleGrid(dgvUsers);
+            UiTheme.StylePrimaryButton(btnSalvar);
+            UiTheme.StyleOutlinedButton(btnRemover, UiTheme.Danger);
         }
 
         private BindingList<Operator> LoadOperators()
@@ -38,6 +42,7 @@ namespace HondaSensorChecker
             dgvUsers.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dgvUsers.MultiSelect = false;
             dgvUsers.AllowUserToAddRows = false;
+            dgvUsers.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
             dgvUsers.Columns[0].HeaderText = "ID";
             dgvUsers.Columns[1].HeaderText = "RE";
@@ -228,6 +233,11 @@ namespace HondaSensorChecker
 
         private void TryAddLogSafe(string description)
         {
+            Logging.ApplicationFileLogger.Information(
+                "Administration.OperatorChanged",
+                description,
+                new Dictionary<string, object?> { ["OperatorId"] = _operatorId });
+
             try
             {
                 if (_operatorId <= 0) return;
@@ -244,9 +254,17 @@ namespace HondaSensorChecker
 
                 _unitOfWork.Commit(out _); // se falhar, ignora
             }
-            catch
+            catch (Exception ex)
             {
-                // ignora log
+                Logging.ApplicationFileLogger.Error(
+                    "Database.OperatorAuditLogFailed",
+                    "Unable to write the operator audit record to the database.",
+                    ex,
+                    new Dictionary<string, object?>
+                    {
+                        ["OperatorId"] = _operatorId,
+                        ["AuditDescription"] = description
+                    });
             }
         }
 

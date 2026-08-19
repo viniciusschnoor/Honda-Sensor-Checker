@@ -1,187 +1,68 @@
-﻿namespace HondaSensorChecker
+namespace HondaSensorChecker
 {
     partial class Users
     {
-        /// <summary>
-        /// Required designer variable.
-        /// </summary>
         private System.ComponentModel.IContainer components = null;
+        private TableLayoutPanel layoutRoot, layoutForm, layoutFooter;
+        private Panel pnlHeader, pnlForm, pnlFooter;
+        private Label label1, lblSubtitle, label2, label3, label4, lblHint;
+        private DataGridView dgvUsers;
+        private TextBox txtRe, txtZfId, txtNome;
+        private CheckBox checkBoxAdmin;
+        private Button btnSalvar, btnRemover;
 
-        /// <summary>
-        /// Clean up any resources being used.
-        /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
-            {
-                components.Dispose();
-            }
+            if (disposing && components != null) components.Dispose();
             base.Dispose(disposing);
         }
 
-        #region Windows Form Designer generated code
-
-        /// <summary>
-        /// Required method for Designer support - do not modify
-        /// the contents of this method with the code editor.
-        /// </summary>
         private void InitializeComponent()
         {
-            label1 = new Label();
-            dgvUsers = new DataGridView();
-            txtRe = new TextBox();
-            label2 = new Label();
-            txtZfId = new TextBox();
-            label3 = new Label();
-            txtNome = new TextBox();
-            label4 = new Label();
-            checkBoxAdmin = new CheckBox();
-            btnSalvar = new Button();
-            btnRemover = new Button();
-            ((System.ComponentModel.ISupportInitialize)dgvUsers).BeginInit();
-            SuspendLayout();
-            // 
-            // label1
-            // 
-            label1.AutoSize = true;
-            label1.Font = new Font("Segoe UI Semibold", 20.25F, FontStyle.Bold);
-            label1.Location = new Point(12, 9);
-            label1.Name = "label1";
-            label1.Size = new Size(123, 37);
-            label1.TabIndex = 1;
-            label1.Text = "Usuários";
-            // 
-            // dgvUsers
-            // 
-            dgvUsers.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvUsers.Location = new Point(12, 118);
-            dgvUsers.Name = "dgvUsers";
-            dgvUsers.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvUsers.Size = new Size(765, 291);
-            dgvUsers.TabIndex = 2;
-            dgvUsers.CellEndEdit += dgvUsers_CellEndEdit;
-            // 
-            // txtRe
-            // 
-            txtRe.Location = new Point(12, 89);
-            txtRe.Name = "txtRe";
-            txtRe.Size = new Size(123, 23);
-            txtRe.TabIndex = 3;
-            // 
-            // label2
-            // 
-            label2.AutoSize = true;
-            label2.Location = new Point(12, 71);
-            label2.Name = "label2";
-            label2.Size = new Size(20, 15);
-            label2.TabIndex = 4;
-            label2.Text = "RE";
-            // 
-            // txtZfId
-            // 
-            txtZfId.Location = new Point(141, 89);
-            txtZfId.Name = "txtZfId";
-            txtZfId.Size = new Size(123, 23);
-            txtZfId.TabIndex = 5;
-            // 
-            // label3
-            // 
-            label3.AutoSize = true;
-            label3.Location = new Point(141, 71);
-            label3.Name = "label3";
-            label3.Size = new Size(103, 15);
-            label3.TabIndex = 6;
-            label3.Text = "ZF-ID (Z#######)";
-            // 
-            // txtNome
-            // 
-            txtNome.Location = new Point(270, 89);
-            txtNome.Name = "txtNome";
-            txtNome.Size = new Size(270, 23);
-            txtNome.TabIndex = 7;
-            // 
-            // label4
-            // 
-            label4.AutoSize = true;
-            label4.Location = new Point(270, 71);
-            label4.Name = "label4";
-            label4.Size = new Size(40, 15);
-            label4.TabIndex = 8;
-            label4.Text = "Nome";
-            // 
-            // checkBoxAdmin
-            // 
-            checkBoxAdmin.AutoSize = true;
-            checkBoxAdmin.Location = new Point(546, 91);
-            checkBoxAdmin.Name = "checkBoxAdmin";
-            checkBoxAdmin.Size = new Size(102, 19);
-            checkBoxAdmin.TabIndex = 9;
-            checkBoxAdmin.Text = "Administrador";
-            checkBoxAdmin.UseVisualStyleBackColor = true;
-            // 
-            // btnSalvar
-            // 
-            btnSalvar.Location = new Point(654, 89);
-            btnSalvar.Name = "btnSalvar";
-            btnSalvar.Size = new Size(123, 23);
-            btnSalvar.TabIndex = 10;
-            btnSalvar.Text = "SALVAR";
-            btnSalvar.UseVisualStyleBackColor = true;
-            btnSalvar.Click += btnSalvar_Click;
-            // 
-            // btnRemover
-            // 
-            btnRemover.Location = new Point(12, 415);
-            btnRemover.Name = "btnRemover";
-            btnRemover.Size = new Size(123, 23);
-            btnRemover.TabIndex = 11;
-            btnRemover.Text = "REMOVER";
-            btnRemover.UseVisualStyleBackColor = true;
-            btnRemover.Click += btnRemover_Click;
-            // 
-            // Users
-            // 
-            AutoScaleDimensions = new SizeF(7F, 15F);
-            AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(789, 450);
-            Controls.Add(btnRemover);
-            Controls.Add(btnSalvar);
-            Controls.Add(checkBoxAdmin);
-            Controls.Add(label4);
-            Controls.Add(txtNome);
-            Controls.Add(label3);
-            Controls.Add(txtZfId);
-            Controls.Add(label2);
-            Controls.Add(txtRe);
-            Controls.Add(dgvUsers);
-            Controls.Add(label1);
-            FormScreenCaptureMode = ScreenCaptureMode.HideWindow;
-            MaximizeBox = false;
-            MaximumSize = new Size(805, 489);
-            MdiChildrenMinimizedAnchorBottom = false;
-            MinimizeBox = false;
-            MinimumSize = new Size(805, 489);
-            Name = "Users";
-            StartPosition = FormStartPosition.CenterScreen;
-            Text = "Usuários";
-            Load += Users_Load;
-            ((System.ComponentModel.ISupportInitialize)dgvUsers).EndInit();
-            ResumeLayout(false);
-            PerformLayout();
-        }
+            layoutRoot = new TableLayoutPanel(); layoutForm = new TableLayoutPanel(); layoutFooter = new TableLayoutPanel();
+            pnlHeader = new Panel(); pnlForm = new Panel(); pnlFooter = new Panel(); label1 = new Label(); lblSubtitle = new Label();
+            label2 = new Label(); label3 = new Label(); label4 = new Label(); lblHint = new Label(); dgvUsers = new DataGridView();
+            txtRe = new TextBox(); txtZfId = new TextBox(); txtNome = new TextBox(); checkBoxAdmin = new CheckBox(); btnSalvar = new Button(); btnRemover = new Button();
+            layoutRoot.SuspendLayout(); layoutForm.SuspendLayout(); layoutFooter.SuspendLayout(); pnlHeader.SuspendLayout(); pnlForm.SuspendLayout(); pnlFooter.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvUsers).BeginInit(); SuspendLayout();
 
-        #endregion
-        private Label label1;
-        private DataGridView dgvUsers;
-        private TextBox txtRe;
-        private Label label2;
-        private TextBox txtZfId;
-        private Label label3;
-        private TextBox txtNome;
-        private Label label4;
-        private CheckBox checkBoxAdmin;
-        private Button btnSalvar;
-        private Button btnRemover;
+            layoutRoot.ColumnCount = 1; layoutRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F)); layoutRoot.Dock = DockStyle.Fill; layoutRoot.Margin = Padding.Empty;
+            layoutRoot.RowCount = 4; layoutRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 88F)); layoutRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F));
+            layoutRoot.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); layoutRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
+            layoutRoot.Controls.Add(pnlHeader, 0, 0); layoutRoot.Controls.Add(pnlForm, 0, 1); layoutRoot.Controls.Add(dgvUsers, 0, 2); layoutRoot.Controls.Add(pnlFooter, 0, 3);
+
+            pnlHeader.BackColor = Color.FromArgb(21, 74, 124); pnlHeader.Dock = DockStyle.Fill; pnlHeader.Margin = Padding.Empty; pnlHeader.Controls.AddRange(new Control[] { label1, lblSubtitle });
+            label1.AutoSize = true; label1.Font = new Font("Segoe UI Semibold", 20F, FontStyle.Bold); label1.ForeColor = Color.White; label1.Location = new Point(22, 14); label1.Text = "Usuários";
+            lblSubtitle.AutoSize = true; lblSubtitle.ForeColor = Color.FromArgb(218, 232, 245); lblSubtitle.Location = new Point(27, 54); lblSubtitle.Text = "Cadastre operadores e defina as permissões administrativas";
+
+            pnlForm.BackColor = Color.White; pnlForm.Dock = DockStyle.Fill; pnlForm.Margin = Padding.Empty; pnlForm.Padding = new Padding(24, 12, 24, 14); pnlForm.Controls.Add(layoutForm);
+            layoutForm.ColumnCount = 5; layoutForm.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18F)); layoutForm.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22F));
+            layoutForm.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60F)); layoutForm.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 126F)); layoutForm.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 136F));
+            layoutForm.Dock = DockStyle.Fill; layoutForm.Margin = Padding.Empty; layoutForm.RowCount = 2; layoutForm.RowStyles.Add(new RowStyle(SizeType.Absolute, 25F)); layoutForm.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
+            layoutForm.Controls.Add(label2, 0, 0); layoutForm.Controls.Add(label3, 1, 0); layoutForm.Controls.Add(label4, 2, 0);
+            layoutForm.Controls.Add(txtRe, 0, 1); layoutForm.Controls.Add(txtZfId, 1, 1); layoutForm.Controls.Add(txtNome, 2, 1); layoutForm.Controls.Add(checkBoxAdmin, 3, 1); layoutForm.Controls.Add(btnSalvar, 4, 1);
+            label2.AutoSize = true; label2.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold); label2.ForeColor = Color.FromArgb(70, 80, 90); label2.Text = "RE";
+            label3.AutoSize = true; label3.Font = label2.Font; label3.ForeColor = label2.ForeColor; label3.Text = "ZF-ID (Z#######)";
+            label4.AutoSize = true; label4.Font = label2.Font; label4.ForeColor = label2.ForeColor; label4.Text = "NOME";
+            txtRe.Dock = DockStyle.Fill; txtRe.Margin = new Padding(0, 0, 12, 8); txtRe.BorderStyle = BorderStyle.FixedSingle;
+            txtZfId.Dock = DockStyle.Fill; txtZfId.Margin = new Padding(0, 0, 12, 8); txtZfId.BorderStyle = BorderStyle.FixedSingle;
+            txtNome.Dock = DockStyle.Fill; txtNome.Margin = new Padding(0, 0, 12, 8); txtNome.BorderStyle = BorderStyle.FixedSingle;
+            checkBoxAdmin.Anchor = AnchorStyles.Left; checkBoxAdmin.AutoSize = true; checkBoxAdmin.Text = "Administrador";
+            btnSalvar.Dock = DockStyle.Fill; btnSalvar.Margin = Padding.Empty; btnSalvar.Text = "ADICIONAR"; btnSalvar.Click += btnSalvar_Click;
+
+            dgvUsers.Dock = DockStyle.Fill; dgvUsers.Margin = Padding.Empty; dgvUsers.MultiSelect = false; dgvUsers.SelectionMode = DataGridViewSelectionMode.FullRowSelect; dgvUsers.CellEndEdit += dgvUsers_CellEndEdit;
+
+            pnlFooter.BackColor = Color.FromArgb(247, 249, 252); pnlFooter.Dock = DockStyle.Fill; pnlFooter.Margin = Padding.Empty; pnlFooter.Padding = new Padding(24, 13, 24, 13); pnlFooter.Controls.Add(layoutFooter);
+            layoutFooter.ColumnCount = 2; layoutFooter.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F)); layoutFooter.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 136F)); layoutFooter.Dock = DockStyle.Fill; layoutFooter.Margin = Padding.Empty;
+            layoutFooter.Controls.Add(lblHint, 0, 0); layoutFooter.Controls.Add(btnRemover, 1, 0);
+            lblHint.AutoSize = true; lblHint.Anchor = AnchorStyles.Left; lblHint.ForeColor = Color.FromArgb(80, 90, 100); lblHint.Text = "Selecione uma linha para editar diretamente ou remover o usuário.";
+            btnRemover.Dock = DockStyle.Fill; btnRemover.Margin = Padding.Empty; btnRemover.Text = "REMOVER"; btnRemover.Click += btnRemover_Click;
+
+            AutoScaleDimensions = new SizeF(7F, 15F); AutoScaleMode = AutoScaleMode.Font; ClientSize = new Size(900, 600); Controls.Add(layoutRoot);
+            FormScreenCaptureMode = ScreenCaptureMode.HideWindow; MinimizeBox = false; MinimumSize = new Size(820, 540); Name = "Users"; StartPosition = FormStartPosition.CenterParent;
+            Text = "Gerenciamento de Usuários"; Load += Users_Load;
+            layoutRoot.ResumeLayout(false); layoutForm.ResumeLayout(false); layoutForm.PerformLayout(); layoutFooter.ResumeLayout(false); layoutFooter.PerformLayout();
+            pnlHeader.ResumeLayout(false); pnlHeader.PerformLayout(); pnlForm.ResumeLayout(false); pnlFooter.ResumeLayout(false); ((System.ComponentModel.ISupportInitialize)dgvUsers).EndInit(); ResumeLayout(false);
+        }
     }
 }

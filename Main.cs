@@ -36,6 +36,21 @@ namespace HondaSensorChecker
         private int? _lockedBoxProductId;
         private string _lockedBoxPartNumber = string.Empty;
         private int? _currentAccPartTypeId;
+        private string _currentAccPartDescription = string.Empty;
+        private bool _accChangeoverInProgress;
+        private bool _sensorOperationInProgress;
+        private RetryTarget _retryTarget = RetryTarget.WorkOrder;
+
+#if DEBUG
+        private const string DebugAccBypassWorkOrder = "012345678912";
+        private bool _debugAccBypassEnabled;
+#endif
+
+        private enum RetryTarget
+        {
+            WorkOrder,
+            Sensor
+        }
 
         public HSCMainForm(
             IUnitOfWork unitOfWork,
@@ -51,8 +66,17 @@ namespace HondaSensorChecker
             InitializeComponent();
         }
 
-        private void HSCMainForm_Load(object sender, EventArgs e)
+        private async void HSCMainForm_Load(object sender, EventArgs e)
         {
+#if DEBUG
+            lblDebugMode.Visible = true;
+#endif
+
+            Logging.ApplicationFileLogger.Information(
+                "UI.MainFormLoading",
+                "Main form is loading.",
+                BuildApplicationLogContext());
+
             _currentOperator = _unitOfWork.Operators
                 .GetAll()
                 .FirstOrDefault(o =>
@@ -61,6 +85,10 @@ namespace HondaSensorChecker
 
             if (_currentOperator == null)
             {
+                Logging.ApplicationFileLogger.Warning(
+                    "Security.UnregisteredWindowsUser",
+                    "The current Windows user is not registered as an operator.",
+                    BuildApplicationLogContext());
                 lblCheckResult.BackColor = Color.Red;
                 lblCheckResult.ForeColor = Color.White;
                 lblCheckResult.Text = "USUÁRIO NÃO REGISTRADO";
@@ -77,7 +105,13 @@ namespace HondaSensorChecker
             txtWorkOrderNumber.Enabled = true;
             txtWorkOrderNumber.Focus();
 
+            Logging.ApplicationFileLogger.Information(
+                "Security.OperatorAuthenticated",
+                "Operator identified from the current Windows user.",
+                BuildApplicationLogContext());
+
             UpdateContinueProcessButton();
+            await TryResumeActiveProcessOnStartupAsync();
         }
 
         private void CleanForm()
@@ -89,6 +123,13 @@ namespace HondaSensorChecker
             _lockedBoxProductId = null;
             _lockedBoxPartNumber = string.Empty;
             _currentAccPartTypeId = null;
+            _currentAccPartDescription = string.Empty;
+            _accChangeoverInProgress = false;
+            _sensorOperationInProgress = false;
+            _retryTarget = RetryTarget.WorkOrder;
+#if DEBUG
+            _debugAccBypassEnabled = false;
+#endif
 
             _scannedSensors.Clear();
             _sensorCounter = 0;
@@ -146,25 +187,96 @@ namespace HondaSensorChecker
         // LOG HELPERS
         // ----------------------------
 
-        private void AddLogSafe(string description)
+        private void AddLogSafe(
+            string description,
+            Logging.ApplicationLogLevel level = Logging.ApplicationLogLevel.Information,
+            string eventName = "Process.Audit",
+            Exception? exception = null)
         {
+            Logging.ApplicationFileLogger.Write(
+                level,
+                eventName,
+                description,
+                exception,
+                BuildApplicationLogContext());
+
             try
             {
                 if (_currentOperator == null) return;
 
-                _unitOfWork.Logs.Add(new Log
+                if (!_unitOfWork.Logs.Add(new Log
                 {
                     Data = DateTime.Now,
                     OperatorId = _currentOperator.OperatorId,
                     Description = description
-                }, out _);
+                }, out var addError))
+                {
+                    Logging.ApplicationFileLogger.Error(
+                        "Database.AuditLogAddFailed",
+                        "Unable to add the business audit record to the database.",
+                        context: MergeApplicationLogContext(new Dictionary<string, object?>
+                        {
+                            ["AuditDescription"] = description,
+                            ["DatabaseError"] = addError
+                        }));
+                    return;
+                }
 
-                _unitOfWork.Commit(out _); // se falhar, ignora
+                if (!_unitOfWork.Commit(out var commitError))
+                {
+                    Logging.ApplicationFileLogger.Error(
+                        "Database.AuditLogCommitFailed",
+                        "Unable to commit the business audit record to the database.",
+                        context: MergeApplicationLogContext(new Dictionary<string, object?>
+                        {
+                            ["AuditDescription"] = description,
+                            ["DatabaseError"] = commitError
+                        }));
+                }
             }
-            catch
+            catch (Exception ex)
             {
-                // ignora
+                Logging.ApplicationFileLogger.Error(
+                    "Database.AuditLogUnexpectedFailure",
+                    "Unexpected failure while writing the business audit record.",
+                    ex,
+                    MergeApplicationLogContext(new Dictionary<string, object?>
+                    {
+                        ["AuditDescription"] = description
+                    }));
             }
+        }
+
+        private Dictionary<string, object?> BuildApplicationLogContext() => new()
+        {
+            ["LoggedWindowsUser"] = _loggedWindowsUser,
+            ["OperatorId"] = _currentOperator?.OperatorId,
+            ["OperatorZfId"] = _currentOperator?.ZfId,
+            ["WorkOrderNumber"] = _currentWorkOrder?.WorkOrderNumber,
+            ["ProductId"] = _currentProduct?.ProductId,
+            ["ProductPrefix"] = _currentProduct?.Prefix,
+            ["StartPartNumber"] = _currentProduct?.StartPartNumber,
+            ["EndPartNumber"] = _currentProduct?.EndPartNumber,
+            ["SupplierBoxId"] = _currentSupplierBox?.SupplierBoxId,
+            ["SupplierBoxUniqueNumber"] = _currentSupplierBox?.UniqueNumber,
+            ["ZfBoxId"] = _currentZfBox?.ZfBoxId,
+            ["SensorCounter"] = _sensorCounter,
+            ["SensorLimit"] = _sensorLimit,
+            ["SupplierBoxRemaining"] = _runtimeSupplierBoxRemaining,
+            ["AccPartTypeId"] = _currentAccPartTypeId,
+            ["AccPartDescription"] = _currentAccPartDescription,
+            ["AccEndpoint"] = $"{_accSettings.IpAddress}:{_accSettings.Port}",
+            ["AccStation"] = _accSettings.Station,
+            ["RetryTarget"] = _retryTarget.ToString()
+        };
+
+        private Dictionary<string, object?> MergeApplicationLogContext(
+            IReadOnlyDictionary<string, object?> additionalContext)
+        {
+            var context = BuildApplicationLogContext();
+            foreach (var item in additionalContext)
+                context[item.Key] = item.Value;
+            return context;
         }
 
         // ----------------------------
@@ -335,6 +447,13 @@ namespace HondaSensorChecker
 
         private void ShowSupplierBoxWarningKeepFlow(string message, string title)
         {
+            Logging.ApplicationFileLogger.Warning(
+                "Validation.SupplierBoxRejected",
+                message,
+                MergeApplicationLogContext(new Dictionary<string, object?>
+                {
+                    ["DialogTitle"] = title
+                }));
             MessageBox.Show(message, title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
             // Se estiver no meio do processo trocando supplier box, NÃO resetar tudo.
@@ -570,7 +689,7 @@ namespace HondaSensorChecker
             CleanForm();
         }
 
-        private async void btnLogisticLabelOk_Click(object sender, EventArgs e)
+        private void btnLogisticLabelOk_Click(object sender, EventArgs e)
         {
             if (_currentWorkOrder == null || _currentProduct == null || _currentSupplierBox == null)
             {
@@ -598,8 +717,17 @@ namespace HondaSensorChecker
             if (!EnsureSupplierBoxHasAvailableStock(sbDb, reason: "zero_before_start"))
                 return;
 
-            if (_currentAccPartTypeId == null && !await TryPerformAccChangeoverAsync())
+            if (_currentAccPartTypeId == null ||
+                !_currentAccPartDescription.Contains(
+                    _currentWorkOrder.WorkOrderNumber, StringComparison.OrdinalIgnoreCase))
+            {
+                ShowWorkOrderAccFailure("CHANGEOVER DA WORK ORDER NÃO CARREGADO");
                 return;
+            }
+
+            _lockedBoxProductId ??= _currentProduct.ProductId;
+            if (string.IsNullOrWhiteSpace(_lockedBoxPartNumber))
+                _lockedBoxPartNumber = _currentProduct.StartPartNumber;
 
             // Se houver saldo suficiente, não faz nada e deixa continuar.
             // Se não houver saldo suficiente, avisa e deixa continuar.
@@ -640,7 +768,9 @@ namespace HondaSensorChecker
                     ProductId = _currentProduct.ProductId,
                     SapWorkOrderId = _currentWorkOrder.SapWorkOrderId,
                     OperatorId = _currentOperator!.OperatorId,
-                    InProgress = true
+                    InProgress = true,
+                    IsPaused = false,
+                    CurrentSupplierBoxId = _currentSupplierBox.SupplierBoxId
                 };
 
                 if (!_unitOfWork.ZfBoxes.Add(newZfBox, out var addError))
@@ -664,6 +794,21 @@ namespace HondaSensorChecker
                 return;
             }
 
+            if (_currentZfBox.CurrentSupplierBoxId != _currentSupplierBox.SupplierBoxId ||
+                _currentZfBox.IsPaused)
+            {
+                _currentZfBox.CurrentSupplierBoxId = _currentSupplierBox.SupplierBoxId;
+                _currentZfBox.IsPaused = false;
+
+                if (!_unitOfWork.ZfBoxes.Edit(_currentZfBox, out var stateError) ||
+                    !_unitOfWork.Commit(out stateError))
+                {
+                    MessageBox.Show(stateError, "Erro ao salvar estado da caixa",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+            }
+
             // Volta ao fluxo normal: trava logistic label e libera scan
             txtLogisticUniqueNumber.Enabled = false;
             txtStartPartNumber.Enabled = false;
@@ -682,29 +827,39 @@ namespace HondaSensorChecker
             lblCheckResult.Text = "POSICIONE O SENSOR E ESCANEIE O SERIAL";
 
             txtComponentSerial.Focus();
+            UpdateContinueProcessButton();
         }
 
-        private async Task<bool> TryPerformAccChangeoverAsync()
+        private async Task<bool> TryPerformAccWorkOrderChangeoverAsync(string workOrderNumber)
         {
-            if (_currentProduct == null)
+            if (string.IsNullOrWhiteSpace(workOrderNumber))
                 return false;
 
-            var rawPartNumber = (txtStartPartNumber.Text ?? string.Empty).Trim().ToUpperInvariant();
-            if (rawPartNumber.Length < 2 || rawPartNumber[0] != 'P')
+#if DEBUG
+            if (string.Equals(workOrderNumber, DebugAccBypassWorkOrder, StringComparison.Ordinal))
             {
-                ShowSupplierBoxWarningKeepFlow("CONFIRA O PARTNUMBER", "ACC CHANGEOVER");
-                return false;
+                _debugAccBypassEnabled = true;
+                _currentAccPartTypeId = 0;
+                _currentAccPartDescription = $"DEBUG ACC BYPASS - WORK ORDER {workOrderNumber}";
+
+                AddLogSafe(
+                    "ACC bypass enabled by the Debug test Work Order. " +
+                    $"WorkOrderNumber={workOrderNumber}. No ACC command will be sent for this process.",
+                    Logging.ApplicationLogLevel.Warning,
+                    "Debug.AccBypassEnabled");
+
+                lblCheckResult.BackColor = Color.FromArgb(255, 193, 7);
+                lblCheckResult.ForeColor = Color.Black;
+                lblCheckResult.Text = "MODO DEBUG\nBYPASS DO ACC ATIVO";
+                return true;
             }
 
-            var partNumber = rawPartNumber[1..];
-            if (!string.Equals(partNumber, _currentProduct.StartPartNumber,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                ShowSupplierBoxWarningKeepFlow(
-                    $"PARTNUMBER INVÁLIDO. ESPERADO: {_currentProduct.StartPartNumber}",
-                    "ACC CHANGEOVER");
-                return false;
-            }
+            _debugAccBypassEnabled = false;
+#endif
+
+            if (_currentAccPartTypeId.HasValue &&
+                _currentAccPartDescription.Contains(workOrderNumber, StringComparison.OrdinalIgnoreCase))
+                return true;
 
             if (string.IsNullOrWhiteSpace(_accSettings.IpAddress) ||
                 _accSettings.Port is < 1 or > 65535 ||
@@ -712,60 +867,109 @@ namespace HondaSensorChecker
                 string.IsNullOrWhiteSpace(_accSettings.ProductType) ||
                 string.IsNullOrWhiteSpace(_accSettings.Station))
             {
-                ShowAccFailure("CONFIGURAÇÃO DO ACC INCOMPLETA");
+                ShowWorkOrderAccFailure("CONFIGURAÇÃO DO ACC INCOMPLETA");
                 return false;
             }
 
-            btnLogisticLabelOk.Enabled = false;
+            _accChangeoverInProgress = true;
+            _currentAccPartTypeId = null;
+            _currentAccPartDescription = string.Empty;
+            txtWorkOrderMaterialNumber.Enabled = false;
+            cbWorkOrderQtyToSend.Enabled = false;
+            btnWorkOrderOk.Enabled = false;
             lblCheckResult.BackColor = Color.Yellow;
             lblCheckResult.ForeColor = Color.Black;
-            lblCheckResult.Text = "CONSULTANDO PARTNUMBER NO ACC";
+            lblCheckResult.Text = "CONSULTANDO WORK ORDER NO ACC";
 
             try
             {
-                var partTypeId = await Task.Run(() =>
+                var changeover = await Task.Run(() =>
                 {
                     using var client = ZF.ACCComm.Client.ACCCommClient.Connect(
                         ZF.ACCComm.Utils.NetworkUtils.GetEndpoint(_accSettings.IpAddress, _accSettings.Port));
-                    var partType = client.PartTypeList(
+                    var matches = client.PartTypeList(
                             _accSettings.Station,
                             _accSettings.ProductType,
                             _accSettings.DllVersion)
-                        .FirstOrDefault(item => string.Equals(
-                            item.PartDesc?.Trim(), partNumber, StringComparison.OrdinalIgnoreCase));
+                        .Where(item => item.PartDesc?.Contains(
+                            workOrderNumber, StringComparison.OrdinalIgnoreCase) == true)
+                        .ToList();
 
-                    return partType?.PartTypeID
-                        ?? throw new InvalidOperationException(
-                            $"Part number '{partNumber}' não encontrado no ACC.");
+                    if (matches.Count == 0)
+                        throw new InvalidOperationException(
+                            $"Work Order '{workOrderNumber}' não encontrada no PartTypeList do ACC.");
+
+                    if (matches.Count > 1)
+                        throw new InvalidOperationException(
+                            $"Work Order '{workOrderNumber}' possui {matches.Count} correspondências no ACC.");
+
+                    var match = matches[0];
+                    var response = client.ChangeModel(
+                        _accSettings.Station,
+                        _accSettings.ProductType,
+                        _accSettings.DllVersion,
+                        match.PartTypeID);
+
+                    return (match.PartTypeID, Description: match.PartDesc?.Trim() ?? string.Empty,
+                        Response: response);
                 });
 
-                _currentAccPartTypeId = partTypeId;
-                _lockedBoxProductId = _currentProduct.ProductId;
-                _lockedBoxPartNumber = _currentProduct.StartPartNumber;
+                _currentAccPartTypeId = changeover.PartTypeID;
+                _currentAccPartDescription = changeover.Description;
 
                 AddLogSafe(
-                    "ACC changeover completed. " +
-                    $"PartNumber={partNumber}, PartTypeID={partTypeId}, " +
-                    $"Station={_accSettings.Station}");
+                    "ACC Work Order changeover completed. " +
+                    $"WorkOrderNumber={workOrderNumber}, " +
+                    $"PartTypeID={changeover.PartTypeID}, " +
+                    $"PartDescription={changeover.Description}, " +
+                    $"Station={_accSettings.Station}, " +
+                    $"IntegerParameters={string.Join(',', changeover.Response.IntegerParameterList ?? [])}, " +
+                    $"StringParameters={string.Join(',', changeover.Response.StringParameterList ?? [])}",
+                    eventName: "ACC.WorkOrderChangeoverCompleted");
                 return true;
             }
             catch (Exception ex)
             {
                 _currentAccPartTypeId = null;
-                ShowAccFailure(ex.Message);
+                _currentAccPartDescription = string.Empty;
+                ShowWorkOrderAccFailure(ex.Message);
                 AddLogSafe(
-                    "ACC changeover failed. " +
-                    $"PartNumber={partNumber}, Error={ex.Message}");
+                    "ACC Work Order changeover failed. " +
+                    $"WorkOrderNumber={workOrderNumber}, Error={ex.Message}",
+                    Logging.ApplicationLogLevel.Error,
+                    "ACC.WorkOrderChangeoverFailed",
+                    ex);
                 return false;
             }
             finally
             {
-                btnLogisticLabelOk.Enabled = true;
+                _accChangeoverInProgress = false;
             }
+        }
+
+        private void ShowWorkOrderAccFailure(string message)
+        {
+            _retryTarget = RetryTarget.WorkOrder;
+            Logging.ApplicationFileLogger.Error(
+                "ACC.WorkOrderFlowBlocked",
+                message,
+                context: BuildApplicationLogContext());
+            lblCheckResult.BackColor = Color.Red;
+            lblCheckResult.ForeColor = Color.White;
+            lblCheckResult.Text = $"NOK ACC\n{message}";
+            txtWorkOrderMaterialNumber.Enabled = false;
+            cbWorkOrderQtyToSend.Enabled = false;
+            btnWorkOrderOk.Enabled = false;
+            txtComponentSerial.Enabled = false;
         }
 
         private void ShowAccFailure(string message)
         {
+            _retryTarget = RetryTarget.Sensor;
+            Logging.ApplicationFileLogger.Error(
+                "ACC.SensorFlowBlocked",
+                message,
+                context: BuildApplicationLogContext());
             lblCheckResult.BackColor = Color.Red;
             lblCheckResult.ForeColor = Color.White;
             lblCheckResult.Text = $"NOK ACC\n{message}";
@@ -883,7 +1087,6 @@ namespace HondaSensorChecker
             }
 
             _runtimeSupplierBoxRemaining -= 1;
-            _currentSupplierBox.QtyRemaining = _runtimeSupplierBoxRemaining;
             txtQtySupplied.Text = $"Q{_runtimeSupplierBoxRemaining}";
 
             return true;
@@ -895,7 +1098,6 @@ namespace HondaSensorChecker
                 return;
 
             _runtimeSupplierBoxRemaining = previousRemaining;
-            _currentSupplierBox.QtyRemaining = _runtimeSupplierBoxRemaining;
             txtQtySupplied.Text = $"Q{_runtimeSupplierBoxRemaining}";
         }
 
@@ -1024,7 +1226,20 @@ namespace HondaSensorChecker
                 return;
             }
 
-            if (!await ShowSensorStatusOkAsync(serial))
+            _sensorOperationInProgress = true;
+            UpdateContinueProcessButton();
+            var accSensorSucceeded = false;
+            try
+            {
+                accSensorSucceeded = await ShowSensorStatusOkAsync(serial);
+            }
+            finally
+            {
+                _sensorOperationInProgress = false;
+                UpdateContinueProcessButton();
+            }
+
+            if (!accSensorSucceeded)
             {
                 RestoreReservedSupplierBoxStock(supplierRemainingBeforeReservation);
                 return;
@@ -1068,11 +1283,18 @@ namespace HondaSensorChecker
                 return;
             }
 
-            // Box is full; open finalization dialog
-            lblCheckResult.Enabled = false;
+            OpenFinishedBoxDialog();
+        }
 
-            // bloquear botão pois vai finalizar
+        private void OpenFinishedBoxDialog()
+        {
+            if (_currentWorkOrder == null || _currentProduct == null ||
+                _currentZfBox == null || _currentOperator == null)
+                return;
+
+            lblCheckResult.Enabled = false;
             btnForceChangeSupplierBox.Enabled = false;
+            btnInterruptProcess.Enabled = false;
 
             var dialog = _finishedBoxFactory.Create(
                 _currentWorkOrder,
@@ -1136,18 +1358,65 @@ namespace HondaSensorChecker
 
         private void lblCheckResult_Click(object sender, EventArgs e)
         {
-            // When NOK, allow retry by enabling the scan input again
             if (lblCheckResult.Text.StartsWith("NOK", StringComparison.OrdinalIgnoreCase))
             {
-                txtComponentSerial.Text = string.Empty;
-                txtComponentSerial.Enabled = true;
-                txtComponentSerial.Focus();
+                RetryCurrentStageAfterNok();
                 return;
             }
 
             // If disabled due to finalization flow, allow full reset
             if (!lblCheckResult.Enabled)
                 CleanForm();
+        }
+
+        private void RetryCurrentStageAfterNok()
+        {
+            Logging.ApplicationFileLogger.Information(
+                "UI.NokPanelClicked",
+                "Operator requested a retry from the NOK result panel.",
+                BuildApplicationLogContext());
+
+            if (_retryTarget == RetryTarget.WorkOrder)
+            {
+                _currentAccPartTypeId = null;
+                _currentAccPartDescription = string.Empty;
+                txtComponentSerial.Enabled = false;
+                txtWorkOrderMaterialNumber.Enabled = false;
+                cbWorkOrderQtyToSend.Enabled = false;
+                btnWorkOrderOk.Enabled = false;
+                txtWorkOrderNumber.Enabled = true;
+                txtWorkOrderNumber.SelectAll();
+                lblCheckResult.BackColor = Color.Yellow;
+                lblCheckResult.ForeColor = Color.Black;
+                lblCheckResult.Text = "LEIA NOVAMENTE A WORK-ORDER";
+                txtWorkOrderNumber.Focus();
+                return;
+            }
+
+            var sensorContextIsValid =
+                _currentOperator != null &&
+                _currentWorkOrder != null &&
+                _currentProduct != null &&
+                _currentSupplierBox != null &&
+                _currentZfBox != null &&
+                _currentAccPartTypeId.HasValue;
+
+            if (!sensorContextIsValid)
+            {
+                _retryTarget = RetryTarget.WorkOrder;
+                ShowWorkOrderAccFailure("CONTEXTO DO PROCESSO INCOMPLETO");
+                txtWorkOrderNumber.Enabled = true;
+                txtWorkOrderNumber.SelectAll();
+                txtWorkOrderNumber.Focus();
+                return;
+            }
+
+            txtComponentSerial.Clear();
+            txtComponentSerial.Enabled = true;
+            lblCheckResult.BackColor = Color.Yellow;
+            lblCheckResult.ForeColor = Color.Black;
+            lblCheckResult.Text = "POSICIONE O SENSOR E ESCANEIE O SERIAL";
+            txtComponentSerial.Focus();
         }
 
         // ----------------------------
@@ -1160,7 +1429,103 @@ namespace HondaSensorChecker
             dialog.ShowDialog();
         }
 
-        private void btnContinueProcess_Click(object sender, EventArgs e)
+        private void btnInterruptProcess_Click(object sender, EventArgs e)
+        {
+            if (_sensorOperationInProgress)
+                return;
+
+            if (_currentWorkOrder == null || _currentProduct == null || _currentZfBox == null || !_currentZfBox.InProgress)
+            {
+                MessageBox.Show(
+                    "Não existe uma caixa em andamento para interromper.",
+                    "INTERROMPER PROCESSO",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                UpdateContinueProcessButton();
+                return;
+            }
+
+            using var authorizationDialog = new AdminAuthorizationDialog();
+            if (authorizationDialog.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            var authorizingAdmin = _unitOfWork.Operators
+                .GetAll()
+                .FirstOrDefault(op =>
+                    op.Admin &&
+                    string.Equals(op.Re?.Trim(), authorizationDialog.AdminRe, StringComparison.OrdinalIgnoreCase));
+
+            if (authorizingAdmin == null)
+            {
+                AddLogSafe(
+                    "Process interruption authorization rejected. " +
+                    $"EnteredAdminRe={authorizationDialog.AdminRe}, ZfBoxId={_currentZfBox.ZfBoxId}",
+                    Logging.ApplicationLogLevel.Warning,
+                    "Security.ProcessInterruptionAuthorizationRejected");
+                MessageBox.Show(
+                    "RE não encontrado ou usuário sem permissão de administrador.",
+                    "AUTORIZAÇÃO NEGADA",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            var firstConfirmation = MessageBox.Show(
+                "Deseja interromper o processo atual e deixar esta caixa aguardando?\n\n" +
+                $"Work Order: {_currentWorkOrder.WorkOrderNumber}\n" +
+                $"Sensores lidos: {_sensorCounter}/{_sensorLimit}\n" +
+                $"Administrador: {authorizingAdmin.Name}",
+                "CONFIRMAR INTERRUPÇÃO",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+            if (firstConfirmation != DialogResult.Yes)
+                return;
+
+            var finalConfirmation = MessageBox.Show(
+                "ÚLTIMA CONFIRMAÇÃO\n\n" +
+                "A caixa permanecerá em andamento e deverá ser retomada pelo botão CONTINUAR PROCESSO.\n\n" +
+                "Confirma a interrupção agora?",
+                "RECONFIRMAR INTERRUPÇÃO",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+            if (finalConfirmation != DialogResult.Yes)
+                return;
+
+            var interruptedZfBoxId = _currentZfBox.ZfBoxId;
+            var interruptedWorkOrder = _currentWorkOrder.WorkOrderNumber;
+            var interruptedSensorCount = _sensorCounter;
+            var interruptedSensorLimit = _sensorLimit;
+
+            _currentZfBox.IsPaused = true;
+            _currentZfBox.CurrentSupplierBoxId = _currentSupplierBox?.SupplierBoxId ??
+                                                   _currentZfBox.CurrentSupplierBoxId;
+
+            if (!_unitOfWork.ZfBoxes.Edit(_currentZfBox, out var pauseError) ||
+                !_unitOfWork.Commit(out pauseError))
+            {
+                MessageBox.Show(
+                    $"Não foi possível colocar a caixa em espera.\n\n{pauseError}",
+                    "ERRO AO INTERROMPER PROCESSO",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
+            }
+
+            AddLogSafe(
+                "Process interrupted and left waiting. " +
+                $"ZfBoxId={interruptedZfBoxId}, WorkOrderNumber={interruptedWorkOrder}, " +
+                $"Sensors={interruptedSensorCount}/{interruptedSensorLimit}, " +
+                $"AuthorizingAdminId={authorizingAdmin.OperatorId}, AuthorizingAdminRe={authorizingAdmin.Re}, " +
+                $"AuthorizingAdminName={authorizingAdmin.Name}",
+                Logging.ApplicationLogLevel.Warning,
+                "Process.InterruptedByAdministrator");
+
+            CleanForm();
+        }
+
+        private async void btnContinueProcess_Click(object sender, EventArgs e)
         {
             if (_currentWorkOrder != null)
                 return;
@@ -1197,7 +1562,129 @@ namespace HondaSensorChecker
             if (dialog.ShowDialog() != DialogResult.OK || dialog.SelectedZfBox == null)
                 return;
 
-            StartContinueProcess(dialog.SelectedZfBox);
+            await ResumePersistedProcessAsync(dialog.SelectedZfBox, restoreSupplierBox: false);
+        }
+
+        private async Task TryResumeActiveProcessOnStartupAsync()
+        {
+            var activeBoxes = _unitOfWork.ZfBoxes
+                .Find(z => z.InProgress && !z.IsPaused)
+                .OrderByDescending(z => z.ZfBoxId)
+                .ToList();
+
+            if (activeBoxes.Count == 0)
+                return;
+
+            if (activeBoxes.Count > 1)
+            {
+                AddLogSafe(
+                    "Multiple active boxes were found during startup. The most recent one will be restored. " +
+                    $"ZfBoxIds={string.Join(',', activeBoxes.Select(z => z.ZfBoxId))}",
+                    Logging.ApplicationLogLevel.Warning,
+                    "Process.MultipleActiveBoxesFound");
+            }
+
+            var activeBox = activeBoxes[0];
+            AddLogSafe(
+                $"Automatically restoring active process. ZfBoxId={activeBox.ZfBoxId}",
+                eventName: "Process.AutomaticResumeStarted");
+
+            await ResumePersistedProcessAsync(activeBox, restoreSupplierBox: true);
+        }
+
+        private async Task<bool> ResumePersistedProcessAsync(
+            ZfBox zfBox,
+            bool restoreSupplierBox)
+        {
+            var selectedWorkOrder = _unitOfWork.SapWorkOrders.GetById(zfBox.SapWorkOrderId);
+            if (selectedWorkOrder == null)
+            {
+                MessageBox.Show("Work Order da caixa não encontrada.", "CONTINUAR PROCESSO",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+
+            StartContinueProcess(zfBox);
+
+            if (!await TryPerformAccWorkOrderChangeoverAsync(selectedWorkOrder.WorkOrderNumber))
+                return false;
+
+            if (zfBox.IsPaused)
+            {
+                zfBox.IsPaused = false;
+                if (!_unitOfWork.ZfBoxes.Edit(zfBox, out var resumeError) ||
+                    !_unitOfWork.Commit(out resumeError))
+                {
+                    MessageBox.Show(resumeError, "Erro ao retomar caixa",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
+            }
+
+            if (_sensorLimit > 0 && _sensorCounter >= _sensorLimit)
+            {
+                OpenFinishedBoxDialog();
+                return true;
+            }
+
+            if (restoreSupplierBox && TryRestorePersistedSupplierBox(zfBox))
+            {
+                AddLogSafe(
+                    "Active process restored automatically. " +
+                    $"ZfBoxId={zfBox.ZfBoxId}, WorkOrderNumber={selectedWorkOrder.WorkOrderNumber}, " +
+                    $"SupplierBoxId={_currentSupplierBox?.SupplierBoxId}, Sensors={_sensorCounter}/{_sensorLimit}",
+                    eventName: "Process.AutomaticResumeCompleted");
+            }
+            else if (restoreSupplierBox)
+            {
+                AddLogSafe(
+                    "The active process was restored, but its SupplierBox could not be recovered. " +
+                    $"ZfBoxId={zfBox.ZfBoxId}. A logistic label scan is required.",
+                    Logging.ApplicationLogLevel.Warning,
+                    "Process.AutomaticResumeSupplierBoxRequired");
+            }
+
+            return true;
+        }
+
+        private bool TryRestorePersistedSupplierBox(ZfBox zfBox)
+        {
+            var supplierBoxId = zfBox.CurrentSupplierBoxId ??
+                                _scannedSensors.FirstOrDefault()?.SupplierBoxId;
+            if (!supplierBoxId.HasValue || _currentProduct == null)
+                return false;
+
+            var supplierBox = _unitOfWork.SupplierBoxes
+                .Find(box => box.SupplierBoxId == supplierBoxId.Value)
+                .FirstOrDefault();
+            if (supplierBox == null || supplierBox.ProductId != _currentProduct.ProductId)
+                return false;
+
+            _currentSupplierBox = supplierBox;
+            var sensorsFromCurrentSupplier = _scannedSensors.Count(
+                sensor => sensor.SupplierBoxId == supplierBox.SupplierBoxId);
+            _runtimeSupplierBoxRemaining = Math.Max(
+                0,
+                supplierBox.QtyRemaining - sensorsFromCurrentSupplier);
+
+            txtLogisticUniqueNumber.Text = $"S{supplierBox.UniqueNumber}";
+            txtStartPartNumber.Text = $"P{_currentProduct.StartPartNumber}";
+            txtQtySupplied.Text = $"Q{_runtimeSupplierBoxRemaining}";
+            txtLogisticUniqueNumber.Enabled = false;
+            txtStartPartNumber.Enabled = false;
+            txtQtySupplied.Enabled = false;
+            btnLogisticLabelNok.Enabled = false;
+            btnLogisticLabelOk.Enabled = false;
+
+            txtComponentSerial.Enabled = true;
+            listBoxReadedSensors.Enabled = true;
+            btnForceChangeSupplierBox.Enabled = true;
+            lblCheckResult.BackColor = Color.Yellow;
+            lblCheckResult.ForeColor = Color.Black;
+            lblCheckResult.Text = "PROCESSO RESTAURADO AUTOMATICAMENTE\nESCANEIE O PRÓXIMO SENSOR";
+            txtComponentSerial.Focus();
+            UpdateContinueProcessButton();
+            return true;
         }
 
         private void btnNewUser_Click(object sender, EventArgs e)
@@ -1227,9 +1714,34 @@ namespace HondaSensorChecker
             dialog.ShowDialog();
         }
 
-        private void txtWorkOrderNumber_Leave(object sender, EventArgs e)
+        private async void txtWorkOrderNumber_Leave(object sender, EventArgs e)
         {
             btnWorkOrderNok.Enabled = true;
+
+            var raw = (txtWorkOrderNumber.Text ?? string.Empty).Trim().ToUpperInvariant();
+            if (raw.Length != 13 || raw[0] != 'O' || _accChangeoverInProgress)
+                return;
+
+            var workOrderNumber = raw[1..];
+            if (!await TryPerformAccWorkOrderChangeoverAsync(workOrderNumber))
+            {
+                txtWorkOrderNumber.Enabled = true;
+                txtWorkOrderNumber.SelectAll();
+                txtWorkOrderNumber.Focus();
+                return;
+            }
+
+            if (_currentProduct == null)
+            {
+                txtWorkOrderMaterialNumber.Enabled = true;
+                txtWorkOrderMaterialNumber.Focus();
+            }
+            else
+            {
+                cbWorkOrderQtyToSend.Enabled = true;
+                btnWorkOrderOk.Enabled = cbWorkOrderQtyToSend.SelectedItem != null;
+                cbWorkOrderQtyToSend.Focus();
+            }
         }
 
         private void StartContinueProcess(ZfBox zfBox)
@@ -1251,7 +1763,6 @@ namespace HondaSensorChecker
             _sensorLimit = zfBox.QtyToSend;
             _lockedBoxProductId = product.ProductId;
             _lockedBoxPartNumber = product.StartPartNumber;
-            _currentAccPartTypeId = null;
 
             _scannedSensors.Clear();
             listBoxReadedSensors.Items.Clear();
@@ -1316,15 +1827,39 @@ namespace HondaSensorChecker
 
         private void ShowWarningAndReset(string message, string title)
         {
+            Logging.ApplicationFileLogger.Warning(
+                "Validation.ProcessReset",
+                message,
+                MergeApplicationLogContext(new Dictionary<string, object?>
+                {
+                    ["DialogTitle"] = title
+                }));
             MessageBox.Show(message, title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             CleanForm();
         }
 
         private async Task<bool> ShowSensorStatusOkAsync(string serial)
         {
+#if DEBUG
+            if (_debugAccBypassEnabled)
+            {
+                lblCheckResult.BackColor = Color.Green;
+                lblCheckResult.ForeColor = Color.White;
+                lblCheckResult.Text = $"OK - DEBUG\n{serial}";
+                txtComponentSerial.Enabled = true;
+
+                AddLogSafe(
+                    "ACC sensor Load/Unload bypassed in Debug mode. " +
+                    $"Serial={serial}, WorkOrderNumber={_currentWorkOrder?.WorkOrderNumber}",
+                    Logging.ApplicationLogLevel.Warning,
+                    "Debug.AccSensorCycleBypassed");
+                return true;
+            }
+#endif
+
             if (_currentAccPartTypeId == null)
             {
-                ShowAccFailure("PARTTYPEID NÃO CARREGADO");
+                ShowWorkOrderAccFailure("PARTTYPEID NÃO CARREGADO");
                 return false;
             }
 
@@ -1375,7 +1910,8 @@ namespace HondaSensorChecker
                     "ACC sensor completed. " +
                     $"Serial={serial}, PartTypeID={_currentAccPartTypeId}, " +
                     $"CycleID={accResult.CycleID}, StatusBits={accResult.StatusBits}, " +
-                    $"IsRework={accResult.IsRework}, OtherInfo={accResult.OtherInfo}");
+                    $"IsRework={accResult.IsRework}, OtherInfo={accResult.OtherInfo}",
+                    eventName: "ACC.SensorCycleCompleted");
                 return true;
             }
             catch (Exception ex)
@@ -1383,13 +1919,21 @@ namespace HondaSensorChecker
                 ShowAccFailure(ex.Message);
                 AddLogSafe(
                     "ACC sensor failed. " +
-                    $"Serial={serial}, PartTypeID={_currentAccPartTypeId}, Error={ex.Message}");
+                    $"Serial={serial}, PartTypeID={_currentAccPartTypeId}, Error={ex.Message}",
+                    Logging.ApplicationLogLevel.Error,
+                    "ACC.SensorCycleFailed",
+                    ex);
                 return false;
             }
         }
 
         private void ShowSensorStatusNok(string message)
         {
+            _retryTarget = RetryTarget.Sensor;
+            Logging.ApplicationFileLogger.Warning(
+                "Validation.SensorRejected",
+                message,
+                BuildApplicationLogContext());
             lblCheckResult.BackColor = Color.Red;
             lblCheckResult.ForeColor = Color.White;
             lblCheckResult.Text = $"NOK\n{message}";
@@ -1476,7 +2020,6 @@ namespace HondaSensorChecker
             if (_currentSupplierBox.QtySupplied > 0 && _runtimeSupplierBoxRemaining > _currentSupplierBox.QtySupplied)
                 _runtimeSupplierBoxRemaining = _currentSupplierBox.QtySupplied;
 
-            _currentSupplierBox.QtyRemaining = _runtimeSupplierBoxRemaining;
             txtQtySupplied.Text = $"Q{_runtimeSupplierBoxRemaining}";
 
             AddLogSafe(
@@ -1489,6 +2032,11 @@ namespace HondaSensorChecker
         private void UpdateContinueProcessButton()
         {
             btnContinueProcess.Enabled = _currentWorkOrder == null && txtWorkOrderNumber.Enabled;
+            btnInterruptProcess.Enabled =
+                !_sensorOperationInProgress &&
+                _currentWorkOrder != null &&
+                _currentProduct != null &&
+                _currentZfBox?.InProgress == true;
         }
 
         private static string NormalizeUserName(string userName)

@@ -13,6 +13,9 @@ namespace HondaSensorChecker
         public ContinueProcessDialog()
         {
             InitializeComponent();
+            UiTheme.StyleForm(this);
+            UiTheme.StylePrimaryButton(btnOk);
+            UiTheme.StyleOutlinedButton(btnCancel);
         }
 
         // ✅ Runtime
