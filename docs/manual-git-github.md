@@ -1376,20 +1376,309 @@ Cria um pacote dos arquivos rastreados naquele commit, sem incluir a pasta `.git
 
 ## 21. Receitas práticas
 
-### 21.1 Visitar, compilar e voltar
+### 21.1 Restaurar temporariamente uma versão antiga sem perder o trabalho atual
+
+Este é o caso concreto do projeto Honda Sensor Checker:
+
+```text
+Versão atual da main: 6ad39b9
+Versão a ser testada: 4d73f24
+Objetivo:              compilar 4d73f24 e depois continuar na versão atual
+Condição:              existem alterações atuais ainda sem commit
+```
+
+Aqui, a palavra “restaurar” não significa apagar os commits posteriores nem transformar `4d73f24` na nova ponta da `main`. Significa somente montar temporariamente a fotografia antiga para executar e testar.
+
+Não use neste cenário:
+
+```powershell
+git reset --hard 4d73f24
+```
+
+Esse comando moveria a `main` e poderia descartar alterações locais. Existem duas estratégias seguras.
+
+#### Estratégia A — segunda pasta com `git worktree` (recomendada)
+
+Esta é a opção mais confortável porque a pasta atual não muda. Não é necessário esconder suas modificações com stash.
+
+Antes:
+
+```text
+Honda-Sensor-Checker\
+│
+├── HEAD → main → 6ad39b9
+├── Main.cs com melhorias ainda sem commit
+└── demais arquivos atuais
+```
+
+Crie uma segunda pasta ligada ao mesmo repositório:
+
+```powershell
+git worktree add --detach ..\Honda-Sensor-Checker-4d73f24 4d73f24
+```
+
+Depois:
+
+```text
+Honda-Sensor-Checker\                    Honda-Sensor-Checker-4d73f24\
+├── main → 6ad39b9                       ├── HEAD → 4d73f24
+├── suas alterações continuam aqui      ├── fotografia antiga limpa
+└── seu trabalho atual                   └── pasta separada para compilar
+
+       bancada atual                              bancada antiga
+       não foi tocada                             criada pelo Git
+```
+
+O depósito de commits `.git` é compartilhado, mas cada worktree possui:
+
+- sua própria pasta de arquivos;
+- seu próprio `HEAD`;
+- seu próprio stage;
+- seus próprios resultados de compilação na respectiva pasta.
+
+Entre na segunda pasta e compile:
+
+```powershell
+Set-Location ..\Honda-Sensor-Checker-4d73f24
+dotnet clean HondaSensorChecker.csproj
+dotnet build HondaSensorChecker.csproj --configuration Debug
+```
+
+Você pode abrir essa segunda solução no Visual Studio. Para não confundir as janelas, observe sempre o caminho completo exibido pelo editor.
+
+Ao terminar, feche o Visual Studio e qualquer processo que esteja usando a versão antiga. Volte à pasta principal:
+
+```powershell
+Set-Location ..\Honda-Sensor-Checker
+git worktree list
+git worktree remove ..\Honda-Sensor-Checker-4d73f24
+```
+
+O que foi removido é somente a bancada adicional. A `main`, suas alterações atuais e os commits continuam na pasta original.
+
+Se você tiver criado arquivos importantes e não commitados dentro da worktree antiga, o Git normalmente recusará a remoção. Inspecione-os e preserve-os; não use `--force` automaticamente.
+
+Analogia: em vez de tirar todos os papéis da sua mesa atual, você pede outra mesa, coloca nela a edição antiga do projeto e trabalha nas duas sem misturar os documentos.
+
+#### Estratégia B — guardar na gaveta e trocar a mesma pasta
+
+Use esta estratégia quando você quer trabalhar na mesma pasta ou não deseja manter uma segunda cópia dos arquivos.
+
+##### Passo 1 — identificar tudo que precisa ser protegido
+
+```powershell
+git status --short --branch
+git diff
+git diff --staged
+```
+
+Imagine este estado:
+
+```text
+HEAD → main → 6ad39b9
+
+Pasta:
+├── Main.cs modificado
+├── Program.cs modificado
+└── teste-manual.txt novo e ainda não rastreado
+
+Stage:
+└── parte da modificação de Main.cs já preparada
+```
+
+##### Passo 2 — guardar a bancada no stash
+
+```powershell
+git stash push -u -m "Trabalho atual antes de testar 4d73f24"
+```
+
+Por que usar `-u`?
+
+```text
+sem -u → guarda arquivos rastreados modificados, mas deixa arquivos novos
+com -u → guarda também teste-manual.txt, que ainda é untracked
+com -a → guardaria até arquivos ignorados; normalmente é desnecessário
+```
+
+Depois do stash:
+
+```text
+HEAD → main → 6ad39b9
+
+Pasta: limpa, igual a 6ad39b9
+Stage: limpo
+
+Gaveta stash@{0}:
+├── alterações de Main.cs
+├── alterações de Program.cs
+├── teste-manual.txt
+└── informação sobre o conteúdo que estava no stage
+```
+
+Confirme que a gaveta existe e que a bancada ficou limpa:
+
+```powershell
+git stash list
+git stash show --stat "stash@{0}"
+git status
+```
+
+Não continue se `status` ainda mostrar alguma alteração importante que deveria ter sido guardada.
+
+##### Passo 3 — visitar diretamente o commit antigo
+
+```powershell
+git switch --detach 4d73f24
+```
+
+Agora:
+
+```text
+HEAD → 4d73f24                   main → 6ad39b9
+       você está aqui                   continua aqui
+
+stash@{0} → suas alterações atuais permanecem guardadas
+```
+
+A `main` não voltou no tempo. Somente o `HEAD` saiu temporariamente da branch e apontou para a fotografia antiga. É exatamente isso que “detached HEAD” significa neste cenário.
+
+Verifique:
 
 ```powershell
 git status
-git stash push -u -m "Antes de testar versão antiga"
-git switch --detach 4d73f24
+git log -1 --oneline --decorate
+```
 
+O log deve mostrar `4d73f24`, e o status deve informar detached HEAD.
+
+##### Passo 4 — limpar resultados de build e recompilar
+
+```powershell
 dotnet clean HondaSensorChecker.csproj
 dotnet build HondaSensorChecker.csproj --configuration Debug
+```
 
+O `clean` evita executar por engano DLLs que tenham sobrado da versão recente. Em seguida, teste a aplicação antiga.
+
+Evite fazer commits durante essa visita. Se descobrir uma correção que realmente precisa preservar a partir da versão antiga, primeiro crie uma branch:
+
+```powershell
+git switch -c correcao-baseada-em-4d73f24
+```
+
+##### Passo 5 — conferir o que o teste produziu
+
+Antes de voltar, feche a aplicação e o Visual Studio e execute:
+
+```powershell
+git status --short
+```
+
+Arquivos de build normalmente são ignorados. Se algum arquivo rastreado tiver sido modificado pelo programa antigo, o Git pode impedir a troca para proteger o conteúdo. Não use `reset --hard` por reflexo: examine a mudança e decida se ela é descartável ou precisa ser guardada separadamente.
+
+##### Passo 6 — voltar para a `main` recente
+
+```powershell
 git switch main
-git stash pop
+```
+
+O estado será:
+
+```text
+HEAD → main → 6ad39b9
+
+Pasta: versão recente limpa
+Gaveta stash@{0}: seu trabalho ainda está protegido
+```
+
+Nesse instante, os commits recentes já voltaram, mas suas modificações não commitadas ainda estão na gaveta.
+
+##### Passo 7 — restaurar as alterações com segurança
+
+Em vez de começar com `stash pop`, use `apply`: ele aplica o conteúdo e conserva a gaveta enquanto você confere o resultado.
+
+```powershell
+git stash apply --index "stash@{0}"
+git status
+git diff
+git diff --staged
+```
+
+O `--index` pede ao Git que também tente reconstruir quais mudanças estavam no stage. Sem ele, o conteúdo volta, mas a separação entre preparado e não preparado pode não ser restaurada como antes.
+
+Depois:
+
+```text
+HEAD → main → 6ad39b9
+
+Pasta:
+├── Main.cs novamente modificado
+├── Program.cs novamente modificado
+└── teste-manual.txt restaurado
+
+Stage:
+└── tenta recuperar a preparação anterior
+
+Gaveta stash@{0}:
+└── ainda existe como cópia de segurança
+```
+
+Compile e confira seu trabalho atual. Somente quando tiver certeza de que tudo foi restaurado:
+
+```powershell
+git stash drop "stash@{0}"
+```
+
+`git stash pop` seria um atalho para aplicar e, se der certo, remover. Separar `apply` e `drop` é mais didático e conservador.
+
+##### E se ocorrer conflito ao aplicar o stash?
+
+Um conflito significa que o Git encontrou duas propostas incompatíveis para as mesmas linhas. O stash não é apagado por `apply`.
+
+```powershell
 git status
 ```
+
+Resolva os marcadores nos arquivos, prepare o que foi resolvido com `git add` e valide o projeto. Mantenha o stash até confirmar a recuperação.
+
+##### Resumo visual da estratégia com stash
+
+```text
+1. INÍCIO
+   main/6ad39b9 + alterações na bancada
+
+2. STASH
+   main/6ad39b9 limpo + alterações na gaveta
+
+3. SWITCH --DETACH
+   HEAD/4d73f24 limpo + main preservada + alterações na gaveta
+
+4. TESTE
+   compila e executa a fotografia antiga
+
+5. SWITCH MAIN
+   HEAD/main/6ad39b9 limpo + alterações na gaveta
+
+6. STASH APPLY --INDEX
+   HEAD/main/6ad39b9 + alterações novamente na bancada/stage
+
+7. STASH DROP
+   remove a cópia da gaveta somente depois da conferência
+```
+
+#### Qual das duas estratégias escolher?
+
+| Situação | Melhor escolha |
+|---|---|
+| Quero manter a versão atual aberta e compilar a antiga ao lado | `git worktree` |
+| Tenho espaço para uma segunda pasta | `git worktree` |
+| Preciso usar exatamente a mesma pasta | `stash` + `switch --detach` |
+| Quero apenas ler um arquivo antigo | `git show COMMIT:arquivo` |
+| Quero trazer um único arquivo antigo para o trabalho atual | `git restore --source=COMMIT arquivo` |
+| Quero apagar commits recentes e mover a `main` | `reset` — não é este caso |
+| Quero desfazer publicamente um erro preservando o histórico | `revert` — não é este caso |
+
+Para este projeto, a estratégia com worktree é a mais isolada. A estratégia com stash também é segura quando todas as verificações acima são seguidas.
 
 ### 21.2 Criar uma melhoria isolada
 
