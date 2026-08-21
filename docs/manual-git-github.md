@@ -1603,6 +1603,814 @@ gh help
 gh help reference
 ```
 
+### 23.1 Como ler as fichas visuais
+
+As fichas abaixo usam sempre as mesmas cinco caixas:
+
+```text
+┌──────────────┐  ┌────────┐  ┌──────────────────┐  ┌────────┐  ┌────────┐
+│ seus arquivos│  │ stage  │  │ commits/branches │  │ origin │  │ GitHub │
+│ working tree │  │ index  │  │      locais      │  │ remoto │  │  PRs   │
+└──────────────┘  └────────┘  └──────────────────┘  └────────┘  └────────┘
+```
+
+Os símbolos significam:
+
+```text
+✓ altera essa caixa
+— não altera essa caixa
+↔ apenas consulta/compara
+! pode descartar ou reescrever dados
+```
+
+Um comando pode mexer no histórico sem mexer nos arquivos, ou mexer nos arquivos sem mexer no histórico. Essa é a ideia mais importante destas fichas.
+
+### 23.2 `git status` — olhar o painel do carro
+
+```text
+Arquivos ↔ | Stage ↔ | Histórico ↔ | Remoto — | GitHub —
+```
+
+O comando apenas lê o estado. Não corrige, não prepara e não envia nada.
+
+```powershell
+git status
+git status --short
+git status --short --branch
+git status --ignored
+```
+
+Possibilidades:
+
+| Forma | O que mostra |
+|---|---|
+| `status` | explicação completa do estado atual |
+| `--short` | códigos compactos, como `M`, `A`, `D` e `??` |
+| `--branch` | branch atual e diferença em relação ao remoto |
+| `--ignored` | inclui arquivos ignorados |
+
+Exemplo real: você editou `Main.cs`, preparou `Program.cs` e criou `anotacoes.txt`.
+
+```text
+ M Main.cs       → modificado apenas na pasta
+M  Program.cs    → modificação já colocada no stage
+?? anotacoes.txt → arquivo novo, ainda desconhecido pelo Git
+```
+
+Analogia: `status` é abrir a despensa e fazer um inventário; nenhum produto é movido.
+
+### 23.3 `git add` — montar a caixa do próximo commit
+
+```text
+Arquivos ↔ | Stage ✓ | Histórico — | Remoto — | GitHub —
+```
+
+Antes:
+
+```text
+Pasta:  Main.cs(B), Program.cs(B), notas.txt(novo)
+Stage:  vazio
+Commit: Main.cs(A), Program.cs(A)
+```
+
+Depois de `git add Main.cs`:
+
+```text
+Pasta:  Main.cs(B), Program.cs(B), notas.txt(novo)
+Stage:  Main.cs(B)
+Commit: Main.cs(A), Program.cs(A)
+```
+
+O arquivo não sai da pasta. O Git coloca a versão B de `Main.cs` na caixa do próximo commit.
+
+| Forma | Seleção feita |
+|---|---|
+| `git add Main.cs` | um arquivo específico |
+| `git add Windows/` | mudanças sob uma pasta |
+| `git add .` | mudanças sob a pasta atual |
+| `git add -A` | todas as adições, edições e remoções do repositório |
+| `git add -u` | mudanças em arquivos já rastreados; não inclui novos |
+| `git add -p` | pergunta trecho por trecho |
+
+Situação real para `-p`: você corrigiu um bug e também mudou uma cor no mesmo arquivo. Pode colocar apenas a correção no primeiro commit e deixar a cor para o próximo.
+
+Se editar `Main.cs` novamente depois do `add`, existirão duas versões:
+
+```text
+Stage: Main.cs(B)
+Pasta: Main.cs(C)
+```
+
+O commit levará B, não C. Confira com `git diff` e `git diff --staged`.
+
+### 23.4 `git commit` — lacrar e catalogar a caixa
+
+```text
+Arquivos — | Stage ✓ | Histórico ✓ | Remoto — | GitHub —
+```
+
+```powershell
+git commit -m "Corrige validação do sensor"
+```
+
+Antes:
+
+```text
+A ← B  main
+Stage: correção em Main.cs
+```
+
+Depois:
+
+```text
+A ← B ← C  main
+          C contém a fotografia preparada
+Stage: vazio
+```
+
+O commit é local. A internet não é usada e o GitHub ainda não recebeu C.
+
+| Forma | Efeito |
+|---|---|
+| `commit -m "..."` | cria commit com mensagem curta |
+| `commit` | abre editor para mensagem detalhada |
+| `commit -a` | prepara mudanças de arquivos rastreados e commita; ignora novos |
+| `commit --amend` | substitui o último commit por outro |
+| `commit --amend --no-edit` | troca o conteúdo sem mudar a mensagem |
+| `commit --allow-empty` | cria commit mesmo sem mudança de arquivo |
+
+`--amend` é como reabrir uma caixa já lacrada e emitir uma caixa nova com outra etiqueta. O hash muda. Se a caixa antiga já foi distribuída, outras pessoas ainda podem ter a versão anterior.
+
+### 23.5 `git diff` — colocar duas versões lado a lado
+
+```text
+Arquivos ↔ | Stage ↔ | Histórico ↔ | Remoto — | GitHub —
+```
+
+```text
+git diff           = pasta versus stage
+git diff --staged  = stage versus último commit
+git diff A B       = fotografia A versus fotografia B
+```
+
+Exemplo:
+
+```text
+Commit: velocidade = 10
+Stage:  velocidade = 20
+Pasta:  velocidade = 30
+```
+
+Então:
+
+```text
+git diff          mostra 20 → 30
+git diff --staged mostra 10 → 20
+```
+
+Possibilidades úteis:
+
+| Forma | Resultado |
+|---|---|
+| `diff -- Main.cs` | limita a um caminho |
+| `diff --stat` | resumo por arquivo |
+| `diff --name-only` | somente nomes |
+| `diff --name-status` | nomes e tipo: adicionado, modificado, removido |
+| `diff --word-diff` | destaca palavras, útil em textos |
+
+Analogia: não troca nenhuma página; apenas coloca duas edições do livro abertas para comparação.
+
+### 23.6 `git log`, `show` e `blame` — consultar o arquivo morto
+
+```text
+Arquivos — | Stage — | Histórico ↔ | Remoto — | GitHub —
+```
+
+`log` consulta a sequência de registros:
+
+```powershell
+git log --oneline --graph --decorate --all
+git log -- Main.cs
+git log -p -- Main.cs
+git log --since="2026-01-01" --author="Vinicius"
+```
+
+`show` abre um registro específico:
+
+```powershell
+git show 4d73f24
+git show --stat 4d73f24
+git show 4d73f24:Main.cs
+```
+
+O último comando não restaura `Main.cs`; apenas imprime a edição antiga na tela.
+
+`blame` anota cada linha com o último commit que a alterou:
+
+```powershell
+git blame -L 100,140 Main.cs
+```
+
+Exemplo real: uma validação estranha aparece na linha 120. `blame` encontra o commit; `show` revela o contexto completo; `log` mostra o que aconteceu antes e depois.
+
+### 23.7 `git init` e `clone` — abrir um arquivo ou copiar o arquivo inteiro
+
+#### `git init`
+
+```text
+Arquivos — | Stage cria | Histórico cria | Remoto — | GitHub —
+```
+
+```powershell
+git init
+git init --initial-branch=main
+```
+
+O Git cria `.git`, sua sala de arquivo vazia. Os arquivos existentes continuam onde estavam e inicialmente aparecem como `untracked`.
+
+```text
+Antes: Pasta comum com Main.cs
+Depois: mesma pasta + .git; Main.cs ainda não está registrado
+```
+
+#### `git clone`
+
+```text
+Arquivos ✓ | Stage ✓ | Histórico ✓ | Remoto ↔ | GitHub ↔
+```
+
+```powershell
+git clone URL
+git clone URL MinhaPasta
+git clone --branch beta URL
+git clone --depth 1 URL
+git clone --recurse-submodules URL
+```
+
+| Opção | O que chega ao computador |
+|---|---|
+| sem opção | histórico, branches remotas e arquivos da branch padrão |
+| `--branch beta` | abre inicialmente a branch/tag escolhida |
+| `--depth 1` | traz apenas a ponta recente; histórico antigo fica indisponível até aprofundar |
+| `--recurse-submodules` | também baixa os repositórios referenciados como submódulos |
+
+Analogia: `init` compra um fichário vazio para uma mesa existente; `clone` fotocopia um fichário preenchido e deixa o endereço do original anotado como `origin`.
+
+### 23.8 `git branch` e `switch` — marcadores e mesas de trabalho
+
+#### `git branch`
+
+```text
+Arquivos — | Stage — | Histórico ✓ referência | Remoto — | GitHub —
+```
+
+```powershell
+git branch teste
+```
+
+Antes e depois:
+
+```text
+Antes: A ← B ← C  main
+Depois:             main, teste → C
+```
+
+Nenhum arquivo muda. Apenas nasce outro marcador no commit C.
+
+| Forma | Efeito |
+|---|---|
+| `branch` | lista branches locais |
+| `branch -a` | inclui referências remotas |
+| `branch nome` | cria sem trocar |
+| `branch -m nome` | renomeia a atual |
+| `branch -d nome` | apaga se o trabalho estiver integrado |
+| `branch -D nome` | força exclusão, mesmo com trabalho exclusivo |
+| `branch --contains HASH` | encontra branches que alcançam o commit |
+
+Apagar a branch apaga o marcador, não imediatamente os objetos. Porém commits sem outro caminho podem ficar difíceis de encontrar.
+
+#### `git switch`
+
+```text
+Arquivos ✓ | Stage ↔ | Histórico — | HEAD ✓ | Remoto —
+```
+
+```powershell
+git switch main
+git switch -c nova-feature
+git switch -
+git switch --detach 4d73f24
+```
+
+Analogia: cada branch é uma mesa com uma edição do projeto. `switch` muda a mesa em que você está sentado; `branch` apenas coloca ou remove placas com nomes.
+
+Se alterações locais puderem acompanhar a troca sem serem sobrescritas, o Git pode carregá-las. Se a troca destruiria conteúdo, normalmente é recusada. Use `status` e `stash` para tornar a transição explícita.
+
+### 23.9 `git restore` — substituir páginas sem mover o marcador
+
+```text
+Arquivos ! | Stage opcional ! | Histórico — | Remoto — | GitHub —
+```
+
+| Forma | Fonte → destino |
+|---|---|
+| `restore Main.cs` | stage → pasta; descarta edição não preparada |
+| `restore --staged Main.cs` | HEAD → stage; mantém a edição na pasta |
+| `restore --source=4d73f24 Main.cs` | commit antigo → pasta |
+| `restore --source=4d73f24 --staged --worktree .` | commit antigo → stage e pasta |
+| `restore -p Main.cs` | pergunta trecho por trecho |
+
+Cena real:
+
+```text
+HEAD:   Main.cs(A)
+Stage:  Main.cs(B)
+Pasta:  Main.cs(C)
+```
+
+Após `git restore Main.cs`:
+
+```text
+HEAD:   A
+Stage:  B
+Pasta:  B   ← C foi descartada
+```
+
+Após `git restore --staged Main.cs` partindo da cena original:
+
+```text
+HEAD:   A
+Stage:  A
+Pasta:  C   ← trabalho continua, apenas saiu da caixa do commit
+```
+
+Analogia: você troca páginas sobre a mesa ou dentro da caixa ainda não lacrada. O arquivo histórico permanece intacto.
+
+### 23.10 `git stash` — guardar a bancada em uma gaveta
+
+```text
+Arquivos ✓ | Stage ✓ | Histórico stash ✓ | Remoto — | GitHub —
+```
+
+```powershell
+git stash push -u -m "Tela de diagnóstico incompleta"
+```
+
+Antes:
+
+```text
+Bancada: Main.cs editado + teste.txt novo
+Gaveta:  vazia
+```
+
+Depois:
+
+```text
+Bancada: limpa, igual ao commit
+Gaveta:  pacote "Tela de diagnóstico incompleta"
+```
+
+| Forma | Efeito |
+|---|---|
+| `stash push` | guarda alterações rastreadas |
+| `push -u` | inclui arquivos novos não rastreados |
+| `push -a` | inclui também ignorados; use com cuidado |
+| `stash list` | lista gavetas |
+| `stash show -p` | abre e examina uma gaveta |
+| `stash apply` | copia da gaveta para a bancada e mantém o pacote |
+| `stash pop` | aplica e remove o pacote se der certo |
+| `stash branch nome` | cria uma mesa no contexto original do pacote |
+| `stash drop` | descarta uma gaveta |
+| `stash clear` | esvazia todas as gavetas |
+
+O stash é local. Ele não aparece automaticamente em outro computador e não é um bom arquivo permanente.
+
+### 23.11 `git merge` — juntar duas receitas
+
+```text
+Arquivos ✓ | Stage ✓ | Histórico ✓ | Remoto — | GitHub —
+```
+
+```powershell
+git switch main
+git merge feature
+```
+
+Cena real: na `main`, outra pessoa corrigiu o banco; na `feature`, você melhorou a tela. O merge tenta produzir uma edição contendo ambos.
+
+```text
+          D tela ← E tela
+         /
+A ← B ← C ← F banco
+          \         \
+           ───────── M tela+banco
+```
+
+| Forma | Comportamento |
+|---|---|
+| `merge feature` | fast-forward quando possível; senão cria merge commit |
+| `merge --ff-only feature` | aceita apenas avanço simples; senão recusa |
+| `merge --no-ff feature` | sempre registra uma junção explícita |
+| `merge --squash feature` | prepara o resultado combinado, sem preservar a ligação como merge |
+| `merge --abort` | tenta retornar ao estado anterior ao merge conflitante |
+
+Conflito é o Git entregando duas versões da mesma frase e pedindo que um humano redija a versão final.
+
+### 23.12 `git rebase` — mudar o ponto de partida da viagem
+
+```text
+Arquivos ✓ temporariamente | Stage ✓ | Histórico ! reescreve | Remoto — | GitHub —
+```
+
+```text
+          D ← E feature
+         /
+A ← B ← C ← F ← G main
+```
+
+`git rebase main`, estando na feature:
+
+```text
+A ← B ← C ← F ← G main
+                  \ D' ← E' feature
+```
+
+O Git não move fisicamente D e E: ele cria D' e E', novas edições com novos hashes, reaplicando as mudanças sobre G.
+
+| Forma | Uso |
+|---|---|
+| `rebase main` | reaplica a branch atual sobre `main` |
+| `rebase origin/main` | usa a visão local mais recente do remoto após `fetch` |
+| `rebase -i HEAD~4` | reorganiza os quatro commits recentes |
+| `rebase --continue` | continua depois de resolver conflito |
+| `rebase --skip` | não reaplica o commit atual |
+| `rebase --abort` | retorna ao ponto de início |
+
+Analogia: você escreveu três capítulos a partir de uma edição antiga do livro. Rebase imprime novas cópias desses capítulos encaixadas na edição atual. Não faça isso em páginas públicas sem combinar com quem já as recebeu.
+
+### 23.13 `git reset` — mover o marcador da branch
+
+```text
+Arquivos depende ! | Stage depende ! | Histórico/branch ! | Remoto — | GitHub —
+```
+
+Cena inicial:
+
+```text
+A ← B ← C  main/HEAD
+```
+
+| Forma | Branch | Stage | Pasta |
+|---|---|---|---|
+| `reset --soft B` | move para B | mantém conteúdo de C preparado | mantém conteúdo de C |
+| `reset --mixed B` | move para B | volta a B | mantém conteúdo de C como edição |
+| `reset --hard B` | move para B | volta a B | volta a B; edições podem ser perdidas |
+| `reset Main.cs` | não move branch | retira arquivo do stage | mantém pasta |
+
+Analogias:
+
+```text
+--soft  → deslacra a última caixa, mas deixa tudo embalado
+--mixed → deslacra e tira os itens da caixa, deixando-os na bancada
+--hard  → joga fora caixa e bancada para reproduzir a fotografia antiga
+```
+
+O remoto não muda até um `push`. Se C já foi publicado, prefira `revert` na maioria dos trabalhos colaborativos.
+
+### 23.14 `git revert` — publicar uma errata
+
+```text
+Arquivos ✓ | Stage ✓ | Histórico ✓ novo commit | Remoto — | GitHub —
+```
+
+```text
+A ← B ← C
+        C introduziu um erro
+```
+
+Após `git revert C`:
+
+```text
+A ← B ← C ← D
+            D aplica o contrário de C
+```
+
+C não é apagado. D é uma errata dizendo publicamente como desfazer C.
+
+| Forma | Efeito |
+|---|---|
+| `revert HASH` | desfaz um commit e cria outro |
+| `revert --no-commit HASH` | prepara a inversão para revisão/combinação |
+| `revert A..B` | reverte uma faixa selecionada |
+| `revert -m 1 MERGE` | reverte merge escolhendo o pai principal |
+| `revert --abort` | cancela uma reversão em conflito |
+
+É normalmente seguro para histórico compartilhado porque acrescenta informação em vez de trocar páginas já distribuídas.
+
+### 23.15 `git remote` — agenda de endereços
+
+```text
+Arquivos — | Stage — | Histórico config ✓ | Servidor — | GitHub —
+```
+
+```powershell
+git remote -v
+git remote add origin URL
+git remote set-url origin NOVA_URL
+git remote rename origin github
+git remote remove github
+git remote show origin
+```
+
+Analogia: `origin` é o nome “Escritório” na agenda; a URL é o endereço. Apagar o contato não demole o escritório e não apaga nenhum repositório no GitHub.
+
+```text
+origin       → apelido local
+origin/main  → fotografia local da última main conhecida naquele endereço
+main remota  → branch que existe de verdade no servidor
+```
+
+### 23.16 `fetch`, `pull` e `push` — receber, aplicar e enviar correspondência
+
+#### `git fetch`
+
+```text
+Arquivos — | Stage — | Histórico remoto-local ✓ | Servidor ↔ | GitHub —
+```
+
+```powershell
+git fetch origin
+git fetch --all --prune
+```
+
+Baixa cartas e atualiza o índice da correspondência, mas não cola nada no seu manuscrito. Depois você pode comparar:
+
+```powershell
+git log main..origin/main --oneline
+git diff main origin/main
+```
+
+#### `git pull`
+
+```text
+Arquivos ✓ | Stage ✓ | Histórico ✓ | Servidor ↔ | GitHub —
+```
+
+`pull` é um pacote: primeiro `fetch`, depois integração.
+
+| Forma | Integração usada |
+|---|---|
+| `pull --ff-only` | somente move a branch se não houver divergência |
+| `pull --rebase` | reaplica seus commits locais sobre os recebidos |
+| `pull --no-rebase` | usa merge se necessário |
+
+Analogia: `fetch` recolhe a correspondência; `pull` recolhe e já incorpora as revisões ao seu documento.
+
+#### `git push`
+
+```text
+Arquivos — | Stage — | Histórico ↔ | Servidor ✓ | GitHub indiretamente ✓
+```
+
+```powershell
+git push origin main
+git push -u origin minha-feature
+git push origin --delete feature-antiga
+git push --force-with-lease
+```
+
+`push` envia commits e move referências remotas. Ele não envia mudanças que estão apenas na pasta ou no stage.
+
+```text
+Pasta modificada ─X─> push
+Stage preparado   ─X─> push
+Commit local      ───> push
+```
+
+`--force-with-lease` é como substituir uma pasta no arquivo central somente se ninguém a atualizou desde sua última consulta. Ainda reescreve histórico e exige cuidado.
+
+### 23.17 `git tag` — colocar um selo em uma fotografia
+
+```text
+Arquivos — | Stage — | Histórico referência ✓ | Remoto — | GitHub —
+```
+
+```powershell
+git tag v1.0.0
+git tag -a v1.0.0 -m "Primeira versão estável"
+git tag -a v0.9.0 4d73f24 -m "Versão anterior"
+git push origin v1.0.0
+```
+
+Branch é marcador de página que avança a cada commit. Tag é um selo de “edição 1.0” que normalmente permanece na mesma fotografia.
+
+| Tipo | Característica |
+|---|---|
+| leve | apenas nome apontando para objeto |
+| anotada (`-a`) | objeto próprio com autor, data e mensagem |
+| assinada (`-s`) | anotada e assinada criptograficamente |
+
+Criar uma tag é local; `git push origin v1.0.0` publica o selo.
+
+### 23.18 `git cherry-pick` — transplantar uma mudança
+
+```text
+Arquivos ✓ | Stage ✓ | Histórico ✓ novo commit | Remoto — | GitHub —
+```
+
+```text
+main:    A ← B ← C
+hotfix:  A ← X
+```
+
+Estando na `main`, `git cherry-pick X` produz:
+
+```text
+main: A ← B ← C ← X'
+```
+
+X' contém a mudança de X, mas possui outro pai e outro hash.
+
+| Forma | Efeito |
+|---|---|
+| `cherry-pick X` | aplica um commit |
+| `cherry-pick A^..B` | aplica faixa incluindo A e B |
+| `cherry-pick -n X` | aplica sem criar commit imediatamente |
+| `cherry-pick --continue` | continua após conflito |
+| `cherry-pick --abort` | cancela a operação completa |
+
+Analogia: não se move a página original; fotocopia-se a correção e adapta-se a cópia para outra edição.
+
+### 23.19 `git clean` — esvaziar itens não catalogados da bancada
+
+```text
+Arquivos não rastreados ! | Stage — | Histórico — | Remoto — | GitHub —
+```
+
+```powershell
+git clean -nd
+git clean -nfd
+git clean -fd
+git clean -fdx
+```
+
+| Opção | Significado |
+|---|---|
+| `-n` | simulação; não apaga |
+| `-f` | autoriza exclusão |
+| `-d` | inclui diretórios não rastreados |
+| `-x` | inclui também ignorados, como builds e configurações locais |
+| `-i` | modo interativo |
+
+Um arquivo não rastreado nunca entrou no arquivo histórico. Se `clean` apagá-lo, o Git normalmente não tem uma versão para recuperar. Faça sempre `-n` primeiro.
+
+### 23.20 `git worktree` — abrir uma segunda bancada
+
+```text
+Pasta adicional ✓ | Stage separado ✓ | Histórico compartilhado ↔ | Remoto —
+```
+
+```powershell
+git worktree add ..\Honda-antigo 4d73f24
+git worktree add -b hotfix ..\Honda-hotfix main
+git worktree list
+git worktree remove ..\Honda-antigo
+```
+
+Cena real:
+
+```text
+Honda-Sensor-Checker\  → main atual aberta no Visual Studio
+Honda-antigo\          → commit 4d73f24 para compilar e comparar
+```
+
+As duas bancadas compartilham o depósito de commits, mas têm arquivos e stages separados. É mais confortável que alternar repetidamente com detached HEAD quando você precisa manter duas versões abertas.
+
+### 23.21 `git bisect` — o investigador que divide suspeitos ao meio
+
+```text
+Arquivos ✓ troca commits | Stage — | Histórico — | Remoto —
+```
+
+Você sabe que `4d73f24` funcionava e `main` está quebrada:
+
+```powershell
+git bisect start
+git bisect bad main
+git bisect good 4d73f24
+```
+
+Se houver 128 commits suspeitos, o Git não pede 128 testes. Ele escolhe o commit do meio; cada resposta `good` ou `bad` elimina metade dos suspeitos, levando cerca de sete testes.
+
+```powershell
+git bisect good
+git bisect bad
+git bisect reset
+```
+
+Analogia: procurar uma palavra errada abrindo primeiro o livro no meio, em vez de ler página por página.
+
+### 23.22 `git reflog` — câmera de segurança local
+
+```text
+Arquivos — | Stage — | Histórico ↔ registros locais | Remoto —
+```
+
+```powershell
+git reflog
+git reflog show main
+```
+
+O log conta a história dos commits. O reflog conta onde suas referências locais estiveram, inclusive antes de reset, rebase ou troca de branch.
+
+```text
+main@{0} agora:       B
+main@{1} antes reset: D
+```
+
+Para colocar uma placa de resgate em D:
+
+```powershell
+git branch resgate D
+```
+
+O reflog não é sincronizado com o GitHub e expira. É uma câmera de segurança, não um backup eterno.
+
+### 23.23 `git rm`, `mv` e `.gitignore` — retirar, mudar e não catalogar
+
+#### `git rm`
+
+```text
+Arquivos ✓ | Stage ✓ remoção | Histórico — até commit
+```
+
+```powershell
+git rm Arquivo.cs
+git rm --cached segredo-local.json
+```
+
+Sem `--cached`, remove da pasta e prepara a remoção. Com `--cached`, mantém na pasta e prepara apenas a saída do controle de versão.
+
+#### `git mv`
+
+```text
+Arquivos ✓ | Stage ✓ | Histórico — até commit
+```
+
+```powershell
+git mv Antigo.cs Novo.cs
+```
+
+Equivale conceitualmente a mover no sistema e preparar remoção+adição. O Git detecta renomeamentos por semelhança de conteúdo ao comparar versões.
+
+#### `.gitignore`
+
+É a lista “não colocar no catálogo”. Ela afeta arquivos ainda não rastreados; não apaga do histórico algo já registrado.
+
+### 23.24 GitHub CLI — comandar a plataforma, não seus arquivos
+
+Os comandos `gh` geralmente não alteram working tree, stage ou commits. Eles consultam ou modificam objetos hospedados no GitHub.
+
+```text
+git commit  → cria história local
+git push    → publica história Git
+gh pr create→ cria uma proposta de integração no GitHub
+```
+
+#### Repositórios
+
+| Comando | Cena real |
+|---|---|
+| `gh repo view` | abre a ficha do projeto hospedado |
+| `gh repo clone dono/projeto` | pede ao Git para copiar o projeto autenticado |
+| `gh repo create` | cria um repositório no GitHub; opções decidem público/privado e origem local |
+| `gh repo fork` | cria uma cópia na sua conta e pode configurar remotos locais |
+
+#### Pull Requests
+
+| Comando | Efeito no GitHub |
+|---|---|
+| `gh pr list` | consulta propostas abertas/fechadas |
+| `gh pr create` | abre proposta entre duas branches já publicadas |
+| `gh pr checkout 123` | cria/troca branch local para examinar o PR; aqui arquivos locais mudam |
+| `gh pr diff 123` | somente mostra diferenças |
+| `gh pr checks 123` | consulta testes automáticos |
+| `gh pr merge 123 --squash` | integra no servidor combinando mudanças em um commit |
+| `gh pr close 123` | fecha a proposta sem integrar código |
+
+Analogia: branch é o manuscrito; push o entrega à editora; PR é o pedido “por favor, revise e incorpore estas páginas”; merge é a decisão editorial de publicá-las.
+
+#### Issues, Actions e releases
+
+```text
+gh issue create   → abre uma ficha de trabalho
+gh workflow run   → solicita uma automação definida pelo projeto
+gh run watch      → acompanha a execução, sem alterar seus arquivos
+gh release create → publica uma edição no GitHub, normalmente associada a uma tag
+```
+
+Sempre consulte `gh COMANDO --help` porque permissões, campos e possibilidades dependem da versão da CLI e das regras do repositório.
+
 ---
 
 ## 24. Regras de segurança
