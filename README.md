@@ -339,6 +339,15 @@ A consulta mostra:
 - nome do usuário que realizou o scan;
 - situação `Em andamento` ou `Finalizado`.
 
+## 13. Consultar caixas finalizadas por Work Order
+
+1. Clique em **CONSULTAR ORDEM / HU**.
+2. Digite ou escaneie a Work Order. A consulta aceita o número com ou sem a letra `O` inicial.
+3. Pressione `Enter` ou clique em **PESQUISAR**.
+4. Selecione uma HU e clique em **ABRIR COMPONENTES**, ou dê um duplo clique na linha.
+
+A primeira tela mostra somente caixas finalizadas, com HU `1J...`, lote, quantidade de componentes, PartNumber final e usuário responsável pela caixa. A tela de detalhes mostra todos os sensores vinculados à HU, incluindo data e hora, usuário do scan, SupplierBox e status.
+
 ---
 
 # Manual da Manutenção
@@ -941,3 +950,5 @@ O ACC é concluído antes da gravação final do sensor no SQLite. Se houver fal
 - [ ] Retomada de processo testada.
 - [ ] Finalização e débito de múltiplas SupplierBoxes testados.
 - [ ] Consulta de componente e logs verificados.
+- [ ] Consulta por Work Order lista somente HUs finalizadas.
+- [ ] Duplo clique ou botão em uma HU exibe todos os componentes da caixa.

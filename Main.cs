@@ -1429,6 +1429,12 @@ namespace HondaSensorChecker
             dialog.ShowDialog();
         }
 
+        private void btnConsultFinishedBoxes_Click(object sender, EventArgs e)
+        {
+            using var dialog = new WorkOrderFinishedBoxesDialog(_unitOfWork);
+            dialog.ShowDialog(this);
+        }
+
         private void btnInterruptProcess_Click(object sender, EventArgs e)
         {
             if (_sensorOperationInProgress)
