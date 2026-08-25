@@ -552,12 +552,13 @@
             // btnRemoveSensor
             // 
             btnRemoveSensor.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnRemoveSensor.Enabled = false;
             btnRemoveSensor.Location = new Point(7, 321);
             btnRemoveSensor.Margin = new Padding(3, 4, 3, 4);
             btnRemoveSensor.Name = "btnRemoveSensor";
             btnRemoveSensor.Size = new Size(306, 32);
             btnRemoveSensor.TabIndex = 4;
-            btnRemoveSensor.Text = "REMOVER (SCRAP)";
+            btnRemoveSensor.Text = "MARCAR COMO SCRAP";
             btnRemoveSensor.UseVisualStyleBackColor = true;
             btnRemoveSensor.Click += btnRemoveSensor_Click;
             // 
@@ -571,6 +572,7 @@
             listBoxReadedSensors.Name = "listBoxReadedSensors";
             listBoxReadedSensors.Size = new Size(306, 84);
             listBoxReadedSensors.TabIndex = 3;
+            listBoxReadedSensors.SelectedIndexChanged += listBoxReadedSensors_SelectedIndexChanged;
             // 
             // label7
             // 

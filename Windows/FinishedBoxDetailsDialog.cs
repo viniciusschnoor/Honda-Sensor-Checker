@@ -1,4 +1,5 @@
 using HondaSensorChecker.Data.UnitOfWork;
+using HondaSensorChecker.Models;
 
 namespace HondaSensorChecker
 {
@@ -43,7 +44,7 @@ namespace HondaSensorChecker
             lblHuValue.Text = WorkOrderFinishedBoxesDialog.FormatHu(box.UniqueNumber);
             lblWorkOrderValue.Text = WorkOrderRules.FormatStoredNumber(workOrder?.WorkOrderNumber);
             lblBatchValue.Text = string.IsNullOrWhiteSpace(box.Batch) ? "N/D" : $"H{box.Batch}";
-            lblQuantityValue.Text = sensors.Count.ToString();
+            lblQuantityValue.Text = sensors.Count(sensor => !sensor.IsScrap).ToString();
 
             listSensors.Items.Clear();
             foreach (var sensor in sensors)
@@ -59,7 +60,11 @@ namespace HondaSensorChecker
                     sensor.ScannedTime.ToString("dd/MM/yyyy HH:mm:ss"),
                     operatorName,
                     supplierNumber,
-                    sensor.InProgress ? "Em andamento" : "Finalizado"
+                    sensor.IsScrap
+                        ? $"SCRAP - {sensor.ScrapOperatorName ?? "Operador N/D"}"
+                        : sensor.AccState == SensorAccState.Loaded
+                            ? "Load pendente"
+                            : sensor.InProgress ? "Em andamento" : "Finalizado"
                 }));
             }
         }

@@ -214,6 +214,27 @@ namespace HondaSensorChecker
                 return false;
             }
 
+            var goodSensorCount = sensorsDb.Count(sensor => !sensor.IsScrap);
+            var scrapSensorCount = sensorsDb.Count(sensor => sensor.IsScrap);
+            var unresolvedSensors = sensorsDb
+                .Where(sensor =>
+                    (!sensor.IsScrap && sensor.AccState != SensorAccState.UnloadedOk) ||
+                    (sensor.IsScrap && sensor.AccState != SensorAccState.UnloadedNok))
+                .Select(sensor => sensor.SerialNumber)
+                .ToList();
+
+            if (goodSensorCount != zfBoxDb.QtyToSend || unresolvedSensors.Count > 0)
+            {
+                MessageBox.Show(
+                    unresolvedSensors.Count > 0
+                        ? $"Existem sensores sem Unload concluído no ACC: {string.Join(", ", unresolvedSensors)}"
+                        : $"Quantidade de sensores OK diferente da meta. Esperado: {zfBoxDb.QtyToSend}. Atual: {goodSensorCount}.",
+                    "FINALIZAÇÃO BLOQUEADA",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return false;
+            }
+
             zfBoxDb.UniqueNumber = _zfBox.UniqueNumber;
             zfBoxDb.Batch = _zfBox.Batch;
             zfBoxDb.InProgress = false;
@@ -271,7 +292,8 @@ namespace HondaSensorChecker
                     $"WorkOrderNumber={workOrderNumber}, " +
                     $"UniqueNumber={_zfBox.UniqueNumber}, " +
                     $"Batch={_zfBox.Batch}, " +
-                    $"Sensors={sensorsDb.Count}, " +
+                    $"GoodSensors={goodSensorCount}, " +
+                    $"ScrapSensors={scrapSensorCount}, " +
                     $"SupplierBoxesUsed={string.Join(",", supplierBoxesUsed)}"
             }, out _);
 
@@ -303,7 +325,8 @@ namespace HondaSensorChecker
                     ["ZfBoxId"] = _zfBoxId,
                     ["UniqueNumber"] = _zfBox.UniqueNumber,
                     ["Batch"] = _zfBox.Batch,
-                    ["SensorCount"] = sensorsDb.Count,
+                    ["GoodSensorCount"] = goodSensorCount,
+                    ["ScrapSensorCount"] = scrapSensorCount,
                     ["SupplierBoxesUsed"] = supplierBoxesUsed
                 });
 

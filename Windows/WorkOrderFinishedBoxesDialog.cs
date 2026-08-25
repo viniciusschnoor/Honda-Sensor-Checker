@@ -65,7 +65,9 @@ namespace HondaSensorChecker
 
             foreach (var box in boxes)
             {
-                var sensorCount = _unitOfWork.Sensors.Find(sensor => sensor.ZfBoxId == box.ZfBoxId).Count();
+                var sensorCount = _unitOfWork.Sensors
+                    .Find(sensor => sensor.ZfBoxId == box.ZfBoxId && !sensor.IsScrap)
+                    .Count();
                 var product = _unitOfWork.Products.GetById(box.ProductId);
                 var boxOperator = _unitOfWork.Operators.GetById(box.OperatorId);
                 var operatorName = boxOperator?.Name ?? boxOperator?.Re ?? boxOperator?.ZfId ?? "N/D";

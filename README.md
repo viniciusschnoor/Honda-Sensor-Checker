@@ -26,7 +26,7 @@ O fluxo principal é:
 4. Validar o part number final e selecionar a quantidade da caixa ZF.
 5. Ler a etiqueta da SupplierBox.
 6. Travar o produto para impedir mistura de part numbers na mesma caixa ZF.
-7. Ler cada sensor, validar duplicidade e produto, e executar `Load` e `Unload` no ACC.
+7. Ler cada sensor, validar duplicidade e produto, e executar o `Load` no ACC.
 8. Registrar cada sensor aprovado no banco local.
 9. Permitir troca de SupplierBox, desde que seja do mesmo produto.
 10. Ao atingir a quantidade definida, validar a etiqueta final e finalizar a caixa.
@@ -43,7 +43,7 @@ O contador no canto superior mostra `lidos/meta`, por exemplo `010/060`.
 
 ### Perfis de acesso
 
-- Operador comum: executa o processo, consulta componentes, retoma caixas, troca SupplierBox e remove sensor como scrap.
+- Operador comum: executa o processo, consulta componentes, retoma caixas, troca SupplierBox e marca o último sensor como scrap.
 - Administrador: possui também acesso a cadastro de usuários, cadastro de produtos e visualização dos logs.
 - Usuário não cadastrado: a aplicação mostra `USUÁRIO NÃO REGISTRADO` e não libera o processo.
 
@@ -65,12 +65,7 @@ Se aparecer `USUÁRIO NÃO REGISTRADO`, não prossiga. Solicite a um administrad
 
 Leia a etiqueta no campo **Nº da ordem**.
 
-Formato esperado:
-
-```text
-O + 12 caracteres
-Exemplo: O123456789012
-```
+Os formatos aceitos estão descritos na seção [Formatos válidos de Work Order](#formatos-válidos-de-work-order): Dummy `OD...`, produção normal `O11...` e rework `O12...`.
 
 Ao sair do campo, inclusive após pressionar `Enter`, a aplicação:
 
@@ -201,12 +196,20 @@ Para cada leitura, a aplicação verifica:
 Depois das validações, o sistema:
 
 1. Reserva uma unidade da SupplierBox em memória.
-2. Executa `Load` no ACC para o serial.
-3. Usa o `CycleID` e o `UnitPartTypeID` retornados para executar `Unload`.
-4. Em caso de sucesso, grava o sensor no banco como `Em andamento`.
+2. Se existir um sensor anterior pendente, executa `Unload OK` desse sensor.
+3. Executa somente o `Load` do novo serial.
+4. Grava o novo sensor como `Loaded`, mantendo-o como o único sensor pendente no ACC.
 5. Atualiza a lista e o contador.
 
-Se o ACC falhar, a reserva da SupplierBox é restaurada e o sensor não é gravado localmente.
+O sensor pendente recebe `Unload OK` somente quando o próximo sensor válido é lido. Se o ACC falhar antes do `Load` do novo sensor, a reserva da SupplierBox é restaurada e o novo sensor não é gravado localmente.
+
+### Último sensor da caixa
+
+Ao atingir a quantidade planejada, o sistema pergunta se todos os sensores estão seguros dentro da caixa:
+
+- **SIM:** executa `Unload OK` do último sensor e, somente após sucesso, abre a tela verde da etiqueta final;
+- **NÃO:** mantém o último sensor pendente para que o operador possa marcá-lo como scrap;
+- falha no `Unload`: mantém a finalização bloqueada e não abre a tela verde.
 
 ### Recuperar após um NOK
 
@@ -218,19 +221,22 @@ Quando o painel estiver vermelho e começar com `NOK`, clique no próprio painel
 
 Não repita a leitura sem antes entender a mensagem apresentada.
 
-## 7. Remover um sensor como scrap
+## 7. Marcar o último sensor como scrap
 
-1. Selecione o serial na lista de sensores lidos.
+1. Selecione o primeiro serial da lista, que corresponde ao último sensor lido.
 2. Clique em **REMOVER (SCRAP)**.
 
 O sistema:
 
-- remove o sensor em andamento do banco;
+- permite scrap somente para o sensor que ainda está com `Load` pendente;
+- executa `Unload NOK` com `statusBits=0` e `failureBits=1`;
+- mantém permanentemente o sensor no banco como scrap;
+- registra o operador, data e hora do scrap;
 - reduz o contador;
-- devolve uma unidade ao saldo em memória da SupplierBox atual;
-- registra a remoção no log.
+- não devolve a unidade ao saldo da SupplierBox, pois a peça foi consumida fisicamente;
+- impede definitivamente uma nova leitura do mesmo serial.
 
-Observação: essa função remove o registro local. Ela não executa um novo comando de correção no ACC.
+Ao tentar reler o serial, a aplicação informa qual operador marcou o componente como scrap. Qualquer item que não seja o primeiro da lista permanece bloqueado para scrap porque já recebeu `Unload OK` quando o componente seguinte foi lido.
 
 ## 8. Trocar a SupplierBox
 
@@ -692,20 +698,24 @@ O `PartTypeID`, o `PartDesc` escolhido e o retorno de `PartTypeData` ficam somen
 
 ### Ciclo do sensor
 
-Para cada serial aprovado localmente:
+Para cada novo serial aprovado localmente:
 
 ```text
-Load(Station, ProductType, DllVersion, PartTypeID, [serial], null)
-  ↓
-CycleID + UnitPartTypeID
-  ↓
-Unload(Station, ProductType, DllVersion, PartTypeID,
-       CycleID, UnitPartTypeID, [serial], resultados vazios)
+Sensor N: Load(Station, ProductType, DllVersion, PartTypeID, [serial N], null)
+  ↓ próximo sensor válido
+Sensor N: Unload(..., statusBits: 1, failureBits: 0, [serial N])
+Sensor N+1: Load(..., [serial N+1], null)
+```
+
+Para scrap do único sensor pendente:
+
+```text
+Unload(..., statusBits: 0, failureBits: 1, [último serial])
 ```
 
 As chamadas são síncronas na DLL e são executadas dentro de `Task.Run` para não bloquear a interface.
 
-No comportamento atual, o sucesso do ciclo é a conclusão das chamadas sem exceção. O log guarda `CycleID`, `StatusBits`, `IsRework` e `OtherInfo` retornados.
+O banco persiste o estado `Loaded`, `UnloadedOk` ou `UnloadedNok`, além de `PartTypeID`, `CycleID`, `UnitPartTypeID`, horário do Unload e dados de auditoria do scrap. Isso permite restaurar uma caixa sem repetir o `Load` do último sensor.
 
 ## 7. Persistência e inicialização
 
@@ -924,21 +934,13 @@ O seed inicial contém dois produtos com o prefixo `C2PK`. A identificação do 
 
 Antes da produção, cada modelo precisa ter um prefixo de sensor inequívoco ou a regra de identificação deve usar mais dados do serial.
 
-## 2. Confirmação funcional do `Unload`
+## 2. Mapeamento dos bits de resultado
 
-O `Unload` atual envia um `Dictionary<string, object>` vazio. Isso deve ser validado contra a configuração real da estação `10.1` e os requisitos de resultados do processo SENSOR.
+O processo usa o bit zero geral definido pela especificação: `statusBits=1/failureBits=0` para OK e `statusBits=0/failureBits=1` para NOK. Engenharia deve confirmar que a estação `10.1` não exige bits adicionais específicos do processo.
 
-## 3. Critério de aprovação do ACC
+## 3. Falha local após sucesso no ACC
 
-O código considera o ciclo aprovado quando `Load` e `Unload` terminam sem lançar exceção. Engenharia deve confirmar se `StatusBits`, `OtherInfo` ou outro campo de retorno precisa participar da decisão de aprovação.
-
-## 4. ACC e remoção por scrap
-
-A remoção por scrap exclui o sensor local em andamento, mas não envia uma reversão ao ACC. O procedimento de qualidade para esse cenário deve ser definido.
-
-## 5. Falha local após sucesso no ACC
-
-O ACC é concluído antes da gravação final do sensor no SQLite. Se houver falha de banco após `Unload`, o ACC poderá conter o ciclo aprovado sem o registro local correspondente. O procedimento de reconciliação deve ser definido pela Engenharia.
+Se o `Load` concluir no ACC e a gravação local falhar, a aplicação tenta compensar imediatamente com `Unload NOK` e registra uma ocorrência crítica se a compensação também falhar. Se um `Unload` concluir e a atualização local falhar, o processo permanece bloqueado para intervenção da Manutenção, evitando o avanço silencioso.
 
 ---
 
@@ -955,6 +957,10 @@ O ACC é concluído antes da gravação final do sensor no SQLite. Se houver fal
 - [ ] `PartTypeList` encontra exatamente uma Description contendo a Work Order sem `O`.
 - [ ] `PartTypeData` conclui com o `PartTypeID` encontrado.
 - [ ] `Load/Unload` validados com a estação `10.1`.
+- [ ] Ao ler o sensor seguinte, o anterior recebe `Unload OK` antes do novo `Load`.
+- [ ] Somente o primeiro item da lista permite scrap e recebe `Unload NOK`.
+- [ ] O último sensor exige confirmação antes da etiqueta final.
+- [ ] Sensor scrapado não pode ser lido novamente e identifica o operador responsável.
 - [ ] Leitura do sensor associada ao handler correto.
 - [ ] Troca de SupplierBox rejeita produto diferente.
 - [ ] Retomada de processo testada.

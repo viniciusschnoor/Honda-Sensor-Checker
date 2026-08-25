@@ -1,4 +1,5 @@
 using HondaSensorChecker.Data.UnitOfWork;
+using HondaSensorChecker.Models;
 using System;
 using System.Linq;
 using System.Windows.Forms;
@@ -70,7 +71,11 @@ namespace HondaSensorChecker
             var workOrderNumber = WorkOrderRules.FormatStoredNumber(workOrder?.WorkOrderNumber);
             var supplierNumber = supplierBox?.UniqueNumber ?? "N/D";
             var zfNumber = string.IsNullOrWhiteSpace(zfBox?.UniqueNumber) ? "(em andamento)" : zfBox.UniqueNumber;
-            var status = sensor.InProgress ? "Em andamento" : "Finalizado";
+            var status = sensor.IsScrap
+                ? $"Scrap - {sensor.ScrapOperatorName ?? "Operador N/D"}"
+                : sensor.AccState == SensorAccState.Loaded
+                    ? "Load pendente"
+                    : sensor.InProgress ? "Em andamento" : "Finalizado";
             var operatorName = scanOperator?.Name ?? scanOperator?.Re ?? scanOperator?.ZfId ?? "N/D";
 
             var item = new ListViewItem(new[]

@@ -53,6 +53,10 @@ namespace HondaSensorChecker.Data.Context
                 .Property(s => s.SerialNumber)
                 .IsRequired();
 
+            modelBuilder.Entity<Sensor>()
+                .Property(s => s.AccState)
+                .HasDefaultValue(SensorAccState.UnloadedOk);
+
             modelBuilder.Entity<SupplierBox>()
                 .Property(sb => sb.UniqueNumber)
                 .IsRequired();

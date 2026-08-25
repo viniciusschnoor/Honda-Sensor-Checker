@@ -115,7 +115,30 @@ namespace HondaSensorChecker.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("AccCycleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AccPartTypeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AccState")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(2);
+
+                    b.Property<DateTime?>("AccUnloadTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AccUnloadOtherInfo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("AccUnitPartTypeId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("InProgress")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsScrap")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("OperatorId")
@@ -128,6 +151,15 @@ namespace HondaSensorChecker.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("ScannedTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ScrapOperatorId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ScrapOperatorName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ScrappedTime")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SerialNumber")

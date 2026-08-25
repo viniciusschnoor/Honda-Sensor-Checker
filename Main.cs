@@ -22,6 +22,7 @@ namespace HondaSensorChecker
         private ZfBox? _currentZfBox;
 
         private readonly List<Sensor> _scannedSensors = new();
+        private Sensor? _pendingAccSensor;
         private int _sensorCounter = 0;
         private int _sensorLimit = 0;
         private int _runtimeSupplierBoxRemaining = 0;
@@ -39,6 +40,7 @@ namespace HondaSensorChecker
         private string _currentAccPartDescription = string.Empty;
         private bool _accPartTypeDataInProgress;
         private bool _sensorOperationInProgress;
+        private bool _criticalProcessBlock;
         private RetryTarget _retryTarget = RetryTarget.WorkOrder;
 
 #if DEBUG
@@ -126,12 +128,14 @@ namespace HondaSensorChecker
             _currentAccPartDescription = string.Empty;
             _accPartTypeDataInProgress = false;
             _sensorOperationInProgress = false;
+            _criticalProcessBlock = false;
             _retryTarget = RetryTarget.WorkOrder;
 #if DEBUG
             _debugAccBypassEnabled = false;
 #endif
 
             _scannedSensors.Clear();
+            _pendingAccSensor = null;
             _sensorCounter = 0;
             _sensorLimit = 0;
             _runtimeSupplierBoxRemaining = 0;
@@ -161,6 +165,7 @@ namespace HondaSensorChecker
             listBoxReadedSensors.Enabled = false;
 
             btnForceChangeSupplierBox.Enabled = false;
+            btnRemoveSensor.Enabled = false;
 
             txtWorkOrderNumber.Text = string.Empty;
             txtWorkOrderMaterialNumber.Text = string.Empty;
@@ -1200,10 +1205,25 @@ namespace HondaSensorChecker
                 return;
             }
 
-            // Avoid duplicates: database and current list
-            if (_unitOfWork.Sensors.Find(s => s.SerialNumber == serial).Any())
+            // Avoid duplicates, preserving a specific audit message for scrap.
+            var existingSensor = _unitOfWork.Sensors
+                .Find(s => s.SerialNumber == serial)
+                .FirstOrDefault();
+            if (existingSensor != null)
             {
-                ShowSensorStatusNok($"{serial} JÁ FOI EXPEDIDO EM OUTRA CAIXA");
+                if (existingSensor.IsScrap)
+                {
+                    var scrapOperator = string.IsNullOrWhiteSpace(existingSensor.ScrapOperatorName)
+                        ? "NÃO IDENTIFICADO"
+                        : existingSensor.ScrapOperatorName;
+                    ShowSensorStatusNok(
+                        $"{serial} FOI MARCADO COMO SCRAP PELO OPERADOR {scrapOperator}");
+                }
+                else
+                {
+                    ShowSensorStatusNok($"{serial} JÁ FOI LIDO EM OUTRA CAIXA OU NESTE PROCESSO");
+                }
+
                 return;
             }
 
@@ -1230,10 +1250,18 @@ namespace HondaSensorChecker
 
             _sensorOperationInProgress = true;
             UpdateContinueProcessButton();
-            var accSensorSucceeded = false;
+            var loadResult = (Success: false, CycleId: (long?)null, UnitPartTypeId: (int?)null);
             try
             {
-                accSensorSucceeded = await ShowSensorStatusOkAsync(serial);
+                if (_pendingAccSensor != null &&
+                    !await CompleteSensorInAccAsync(_pendingAccSensor, approved: true))
+                {
+                    RestoreReservedSupplierBoxStock(supplierRemainingBeforeReservation);
+                    return;
+                }
+
+                _pendingAccSensor = null;
+                loadResult = await LoadSensorInAccAsync(serial);
             }
             finally
             {
@@ -1241,7 +1269,7 @@ namespace HondaSensorChecker
                 UpdateContinueProcessButton();
             }
 
-            if (!accSensorSucceeded)
+            if (!loadResult.Success)
             {
                 RestoreReservedSupplierBoxStock(supplierRemainingBeforeReservation);
                 return;
@@ -1257,23 +1285,34 @@ namespace HondaSensorChecker
                 SupplierBoxId = _currentSupplierBox.SupplierBoxId, // pode mudar no meio do processo
                 SapWorkOrderId = _currentWorkOrder.SapWorkOrderId,
                 ZfBoxId = _currentZfBox.ZfBoxId,
-                InProgress = true
+                InProgress = true,
+                AccState = SensorAccState.Loaded,
+                AccPartTypeId = _currentAccPartTypeId,
+                AccCycleId = loadResult.CycleId,
+                AccUnitPartTypeId = loadResult.UnitPartTypeId
             };
 
             if (!_unitOfWork.Sensors.Add(sensor, out var addError))
             {
+                await TryCompensateUnpersistedLoadAsync(sensor);
+                RestoreReservedSupplierBoxStock(supplierRemainingBeforeReservation);
                 MessageBox.Show(addError, "Database error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             if (!_unitOfWork.Commit(out var commitError))
             {
+                await TryCompensateUnpersistedLoadAsync(sensor);
+                RestoreReservedSupplierBoxStock(supplierRemainingBeforeReservation);
                 MessageBox.Show(commitError, "Commit error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             _scannedSensors.Add(sensor);
+            _pendingAccSensor = sensor;
             listBoxReadedSensors.Items.Insert(0, serial);
+            listBoxReadedSensors.SelectedIndex = 0;
+            UpdateScrapButtonState();
 
             _sensorCounter++;
             lblComponentQty.Text = $"{_sensorCounter:D3}/{_sensorLimit:D3}";
@@ -1285,7 +1324,7 @@ namespace HondaSensorChecker
                 return;
             }
 
-            OpenFinishedBoxDialog();
+            await ConfirmLastSensorAndFinalizeAsync();
         }
 
         private void OpenFinishedBoxDialog()
@@ -1293,6 +1332,21 @@ namespace HondaSensorChecker
             if (_currentWorkOrder == null || _currentProduct == null ||
                 _currentZfBox == null || _currentOperator == null)
                 return;
+
+            var unresolvedSensors = _scannedSensors
+                .Where(sensor =>
+                    (!sensor.IsScrap && sensor.AccState != SensorAccState.UnloadedOk) ||
+                    (sensor.IsScrap && sensor.AccState != SensorAccState.UnloadedNok))
+                .Select(sensor => sensor.SerialNumber)
+                .ToList();
+            if (_sensorCounter != _sensorLimit || unresolvedSensors.Count > 0)
+            {
+                ShowSensorStatusNok(
+                    unresolvedSensors.Count > 0
+                        ? $"EXISTEM SENSORES PENDENTES NO ACC: {string.Join(", ", unresolvedSensors)}"
+                        : $"QUANTIDADE BOA INCOMPLETA: {_sensorCounter}/{_sensorLimit}");
+                return;
+            }
 
             lblCheckResult.Enabled = false;
             btnForceChangeSupplierBox.Enabled = false;
@@ -1308,61 +1362,105 @@ namespace HondaSensorChecker
             CleanForm();
         }
 
-        private void btnRemoveSensor_Click(object sender, EventArgs e)
+        private async void btnRemoveSensor_Click(object sender, EventArgs e)
         {
-            if (listBoxReadedSensors.SelectedItem == null)
+            if (_sensorOperationInProgress || listBoxReadedSensors.SelectedItem == null)
                 return;
 
             var serial = listBoxReadedSensors.SelectedItem.ToString();
             if (string.IsNullOrWhiteSpace(serial))
                 return;
 
-            // Remove da lista em memória
-            var removedSensors = _scannedSensors.Where(s => s.SerialNumber == serial).ToList();
-            var removed = removedSensors.Count > 0;
-
-            // Remove da UI
-            listBoxReadedSensors.Items.Remove(serial);
-
-            if (removed)
+            if (listBoxReadedSensors.SelectedIndex != 0 ||
+                _pendingAccSensor == null ||
+                !string.Equals(_pendingAccSensor.SerialNumber, serial, StringComparison.OrdinalIgnoreCase) ||
+                _pendingAccSensor.AccState != SensorAccState.Loaded)
             {
-                foreach (var sensor in removedSensors)
-                {
-                    if (!_unitOfWork.Sensors.Remove(sensor.SensorId, out var removeError))
-                    {
-                        MessageBox.Show(removeError, "Database error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return;
-                    }
-                }
+                MessageBox.Show(
+                    "Somente o primeiro sensor da lista, que corresponde ao último sensor lido, pode ser marcado como scrap.",
+                    "SCRAP BLOQUEADO",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                UpdateScrapButtonState();
+                return;
+            }
 
-                if (!_unitOfWork.Commit(out var commitError))
-                {
-                    MessageBox.Show(commitError, "Commit error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            var confirm = MessageBox.Show(
+                $"Confirma o scrap do sensor {serial}?\n\n" +
+                "O ACC receberá Unload NOK e este serial nunca poderá ser lido novamente.",
+                "CONFIRMAR SCRAP",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+            if (confirm != DialogResult.Yes)
+                return;
+
+            _sensorOperationInProgress = true;
+            UpdateContinueProcessButton();
+            try
+            {
+                if (!await CompleteSensorInAccAsync(
+                        _pendingAccSensor,
+                        approved: false,
+                        scrapOperator: _currentOperator))
                     return;
-                }
 
-                _scannedSensors.RemoveAll(s => s.SerialNumber == serial);
                 _sensorCounter = Math.Max(0, _sensorCounter - 1);
                 lblComponentQty.Text = $"{_sensorCounter:D3}/{_sensorLimit:D3}";
 
-                RestoreSupplierBoxStockForRemovedSensor();
-
-                // Log de scrap
                 AddLogSafe(
-                    $"Sensor removed (SCRAP). Serial={serial}, " +
-                    $"WorkOrderNumber={_currentWorkOrder?.WorkOrderNumber}, " +
-                    $"SupplierBox={_currentSupplierBox?.UniqueNumber}, " +
-                    $"CounterNow={_sensorCounter}/{_sensorLimit}");
+                    "Sensor marked as scrap after ACC Unload NOK. " +
+                    $"Serial={serial}, WorkOrderNumber={_currentWorkOrder?.WorkOrderNumber}, " +
+                    $"ScrapOperatorId={_pendingAccSensor.ScrapOperatorId}, " +
+                    $"ScrapOperatorName={_pendingAccSensor.ScrapOperatorName}, " +
+                    $"SupplierBoxId={_pendingAccSensor.SupplierBoxId}, " +
+                    $"CounterNow={_sensorCounter}/{_sensorLimit}",
+                    Logging.ApplicationLogLevel.Warning,
+                    "ACC.SensorScrapped");
+
+                _pendingAccSensor = null;
+                btnRemoveSensor.Enabled = false;
+                lblCheckResult.BackColor = Color.FromArgb(255, 193, 7);
+                lblCheckResult.ForeColor = Color.Black;
+                lblCheckResult.Text = $"SCRAP REGISTRADO\n{serial}\nLEIA UM NOVO SENSOR";
+                txtComponentSerial.Clear();
+                txtComponentSerial.Enabled = true;
+            }
+            finally
+            {
+                _sensorOperationInProgress = false;
+                UpdateContinueProcessButton();
             }
 
             txtComponentSerial.Focus();
         }
 
-        private void lblCheckResult_Click(object sender, EventArgs e)
+        private async void lblCheckResult_Click(object sender, EventArgs e)
         {
+            if (_criticalProcessBlock)
+            {
+                MessageBox.Show(
+                    "O estado do ACC e do banco precisa ser reconciliado pela Manutenção. Consulte o log antes de reiniciar o processo.",
+                    "PROCESSO BLOQUEADO",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
+            }
+
             if (lblCheckResult.Text.StartsWith("NOK", StringComparison.OrdinalIgnoreCase))
             {
+                if (_sensorCounter >= _sensorLimit && _pendingAccSensor != null)
+                {
+                    await ConfirmLastSensorAndFinalizeAsync();
+                    return;
+                }
+
                 RetryCurrentStageAfterNok();
+                return;
+            }
+
+            if (_sensorCounter >= _sensorLimit && _pendingAccSensor != null)
+            {
+                await ConfirmLastSensorAndFinalizeAsync();
                 return;
             }
 
@@ -1614,6 +1712,22 @@ namespace HondaSensorChecker
 
             StartContinueProcess(zfBox);
 
+            var pendingSensors = _scannedSensors
+                .Where(sensor => sensor.AccState == SensorAccState.Loaded && !sensor.IsScrap)
+                .ToList();
+            if (pendingSensors.Count > 1)
+            {
+                var pendingSerials = string.Join(", ", pendingSensors.Select(sensor => sensor.SerialNumber));
+                BlockProcessForMaintenance(
+                    $"MAIS DE UM SENSOR POSSUI LOAD PENDENTE\n{pendingSerials}");
+                AddLogSafe(
+                    "Process resume blocked because multiple sensors have pending ACC Loads. " +
+                    $"ZfBoxId={zfBox.ZfBoxId}, Serials={pendingSerials}",
+                    Logging.ApplicationLogLevel.Critical,
+                    "Process.MultiplePendingAccLoads");
+                return false;
+            }
+
             if (!await TryLoadAccPartTypeDataAsync(selectedWorkOrder.WorkOrderNumber))
                 return false;
 
@@ -1631,7 +1745,7 @@ namespace HondaSensorChecker
 
             if (_sensorLimit > 0 && _sensorCounter >= _sensorLimit)
             {
-                OpenFinishedBoxDialog();
+                await ConfirmLastSensorAndFinalizeAsync();
                 return true;
             }
 
@@ -1781,11 +1895,18 @@ namespace HondaSensorChecker
                 .ToList();
 
             _scannedSensors.AddRange(existingSensors);
-            _sensorCounter = _scannedSensors.Count;
+            _pendingAccSensor = existingSensors
+                .FirstOrDefault(sensor => sensor.AccState == SensorAccState.Loaded && !sensor.IsScrap);
+            _sensorCounter = _scannedSensors.Count(sensor => !sensor.IsScrap);
             lblComponentQty.Text = $"{_sensorCounter:D3}/{_sensorLimit:D3}";
 
             foreach (var sensor in existingSensors)
                 listBoxReadedSensors.Items.Add(sensor.SerialNumber);
+
+            if (listBoxReadedSensors.Items.Count > 0)
+                listBoxReadedSensors.SelectedIndex = 0;
+
+            UpdateScrapButtonState();
 
             txtWorkOrderNumber.Text = $"O{workOrder.WorkOrderNumber}";
             txtWorkOrderMaterialNumber.Text = $"P{product.EndPartNumber}";
@@ -1846,35 +1967,36 @@ namespace HondaSensorChecker
             CleanForm();
         }
 
-        private async Task<bool> ShowSensorStatusOkAsync(string serial)
+        private async Task<(bool Success, long? CycleId, int? UnitPartTypeId)> LoadSensorInAccAsync(
+            string serial)
         {
 #if DEBUG
             if (_debugAccBypassEnabled)
             {
                 lblCheckResult.BackColor = Color.Green;
                 lblCheckResult.ForeColor = Color.White;
-                lblCheckResult.Text = $"OK - DEBUG\n{serial}";
+                lblCheckResult.Text = $"LOAD OK - DEBUG\n{serial}";
                 txtComponentSerial.Enabled = true;
 
                 AddLogSafe(
-                    "ACC sensor Load/Unload bypassed in Debug mode. " +
+                    "ACC sensor Load bypassed in Debug mode. " +
                     $"Serial={serial}, WorkOrderNumber={_currentWorkOrder?.WorkOrderNumber}",
                     Logging.ApplicationLogLevel.Warning,
-                    "Debug.AccSensorCycleBypassed");
-                return true;
+                    "Debug.AccSensorLoadBypassed");
+                return (true, null, null);
             }
 #endif
 
             if (_currentAccPartTypeId == null)
             {
                 ShowWorkOrderAccFailure("PARTTYPEID NÃO CARREGADO");
-                return false;
+                return (false, null, null);
             }
 
             txtComponentSerial.Enabled = false;
             lblCheckResult.BackColor = Color.Yellow;
             lblCheckResult.ForeColor = Color.Black;
-            lblCheckResult.Text = $"PROCESSANDO NO ACC\n{serial}";
+            lblCheckResult.Text = $"EXECUTANDO LOAD NO ACC\n{serial}";
 
             try
             {
@@ -1892,47 +2014,270 @@ namespace HondaSensorChecker
                         serials,
                         null);
 
-                    uint? unitPartTypeId = load.UnitPartTypeID.HasValue
-                        ? checked((uint)load.UnitPartTypeID.Value)
-                        : null;
-
-                    var unload = client.Unload(
-                        _accSettings.Station,
-                        _accSettings.ProductType,
-                        _accSettings.DllVersion,
-                        _currentAccPartTypeId.Value,
-                        load.CycleID,
-                        unitPartTypeId,
-                        serials,
-                        new Dictionary<string, object>());
-
-                    return (load.CycleID, load.StatusBits, load.IsRework, unload.OtherInfo);
+                    return (load.CycleID, load.UnitPartTypeID, load.StatusBits, load.IsRework);
                 });
 
                 lblCheckResult.BackColor = Color.Green;
                 lblCheckResult.ForeColor = Color.White;
-                lblCheckResult.Text = $"OK\n{serial}";
+                lblCheckResult.Text = $"LOAD OK\n{serial}";
                 txtComponentSerial.Enabled = true;
 
                 AddLogSafe(
-                    "ACC sensor completed. " +
+                    "ACC sensor Load completed; Unload is pending. " +
                     $"Serial={serial}, PartTypeID={_currentAccPartTypeId}, " +
                     $"CycleID={accResult.CycleID}, StatusBits={accResult.StatusBits}, " +
-                    $"IsRework={accResult.IsRework}, OtherInfo={accResult.OtherInfo}",
-                    eventName: "ACC.SensorCycleCompleted");
+                    $"UnitPartTypeID={accResult.UnitPartTypeID}, IsRework={accResult.IsRework}",
+                    eventName: "ACC.SensorLoadCompleted");
+                return (
+                    true,
+                    checked((long?)accResult.CycleID),
+                    accResult.UnitPartTypeID);
+            }
+            catch (Exception ex)
+            {
+                ShowAccFailure(ex.Message);
+                AddLogSafe(
+                    "ACC sensor Load failed. " +
+                    $"Serial={serial}, PartTypeID={_currentAccPartTypeId}, Error={ex.Message}",
+                    Logging.ApplicationLogLevel.Error,
+                    "ACC.SensorLoadFailed",
+                    ex);
+                return (false, null, null);
+            }
+        }
+
+        private async Task<bool> CompleteSensorInAccAsync(
+            Sensor sensor,
+            bool approved,
+            Operator? scrapOperator = null)
+        {
+            if (sensor.AccState != SensorAccState.Loaded)
+                return true;
+
+            var partTypeId = sensor.AccPartTypeId ?? _currentAccPartTypeId;
+            if (!partTypeId.HasValue)
+            {
+                ShowAccFailure("PARTTYPEID DO SENSOR NÃO ENCONTRADO");
+                return false;
+            }
+
+            txtComponentSerial.Enabled = false;
+            lblCheckResult.BackColor = Color.Yellow;
+            lblCheckResult.ForeColor = Color.Black;
+            lblCheckResult.Text = approved
+                ? $"EXECUTANDO UNLOAD OK\n{sensor.SerialNumber}"
+                : $"EXECUTANDO UNLOAD NOK\n{sensor.SerialNumber}";
+
+            try
+            {
+                string otherInfo;
+#if DEBUG
+                if (_debugAccBypassEnabled)
+                {
+                    otherInfo = "DEBUG ACC BYPASS";
+                }
+                else
+#endif
+                {
+                    otherInfo = await Task.Run(() =>
+                    {
+                        using var client = ZF.ACCComm.Client.ACCCommClient.Connect(
+                            ZF.ACCComm.Utils.NetworkUtils.GetEndpoint(
+                                _accSettings.IpAddress,
+                                _accSettings.Port));
+
+                        var unload = client.Unload(
+                            station: _accSettings.Station,
+                            product: _accSettings.ProductType,
+                            version: _accSettings.DllVersion,
+                            partTypeID: partTypeId.Value,
+                            statusBits: approved ? 1u : 0u,
+                            failureBits: approved ? 0u : 1u,
+                            components: new[] { sensor.SerialNumber },
+                            tagList: null);
+
+                        return unload.OtherInfo ?? string.Empty;
+                    });
+                }
+
+                sensor.AccState = approved
+                    ? SensorAccState.UnloadedOk
+                    : SensorAccState.UnloadedNok;
+                sensor.AccUnloadTime = DateTime.Now;
+                sensor.AccUnloadOtherInfo = otherInfo;
+
+                if (!approved)
+                {
+                    sensor.IsScrap = true;
+                    sensor.ScrappedTime = DateTime.Now;
+                    sensor.ScrapOperatorId = scrapOperator?.OperatorId;
+                    sensor.ScrapOperatorName = scrapOperator?.Name ??
+                                               scrapOperator?.Re ??
+                                               _loggedWindowsUser;
+                }
+
+                if (!_unitOfWork.Sensors.Edit(sensor, out var editError) ||
+                    !_unitOfWork.Commit(out editError))
+                {
+                    BlockProcessForMaintenance(
+                        $"UNLOAD ENVIADO, MAS O BANCO NÃO FOI ATUALIZADO\n{sensor.SerialNumber}");
+                    MessageBox.Show(
+                        "O Unload foi enviado ao ACC, mas não foi possível persistir o estado local.\n\n" +
+                        editError,
+                        "ERRO DE PERSISTÊNCIA APÓS UNLOAD",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                    AddLogSafe(
+                        "ACC Unload succeeded but local persistence failed. " +
+                        $"Serial={sensor.SerialNumber}, Approved={approved}, Error={editError}",
+                        Logging.ApplicationLogLevel.Critical,
+                        "ACC.SensorUnloadPersistenceFailed");
+                    return false;
+                }
+
+                AddLogSafe(
+                    $"ACC sensor Unload {(approved ? "OK" : "NOK")} completed. " +
+                    $"Serial={sensor.SerialNumber}, PartTypeID={partTypeId}, " +
+                    $"StatusBits={(approved ? 1 : 0)}, FailureBits={(approved ? 0 : 1)}, " +
+                    $"OtherInfo={otherInfo}",
+                    approved
+                        ? Logging.ApplicationLogLevel.Information
+                        : Logging.ApplicationLogLevel.Warning,
+                    approved ? "ACC.SensorUnloadOkCompleted" : "ACC.SensorUnloadNokCompleted");
                 return true;
             }
             catch (Exception ex)
             {
                 ShowAccFailure(ex.Message);
                 AddLogSafe(
-                    "ACC sensor failed. " +
-                    $"Serial={serial}, PartTypeID={_currentAccPartTypeId}, Error={ex.Message}",
+                    $"ACC sensor Unload {(approved ? "OK" : "NOK")} failed. " +
+                    $"Serial={sensor.SerialNumber}, PartTypeID={partTypeId}, Error={ex.Message}",
                     Logging.ApplicationLogLevel.Error,
-                    "ACC.SensorCycleFailed",
+                    approved ? "ACC.SensorUnloadOkFailed" : "ACC.SensorUnloadNokFailed",
                     ex);
                 return false;
             }
+        }
+
+        private async Task TryCompensateUnpersistedLoadAsync(Sensor sensor)
+        {
+            try
+            {
+#if DEBUG
+                if (_debugAccBypassEnabled)
+                    return;
+#endif
+                if (!sensor.AccPartTypeId.HasValue)
+                    return;
+
+                await Task.Run(() =>
+                {
+                    using var client = ZF.ACCComm.Client.ACCCommClient.Connect(
+                        ZF.ACCComm.Utils.NetworkUtils.GetEndpoint(
+                            _accSettings.IpAddress,
+                            _accSettings.Port));
+
+                    client.Unload(
+                        station: _accSettings.Station,
+                        product: _accSettings.ProductType,
+                        version: _accSettings.DllVersion,
+                        partTypeID: sensor.AccPartTypeId.Value,
+                        statusBits: 0u,
+                        failureBits: 1u,
+                        components: new[] { sensor.SerialNumber },
+                        tagList: null);
+                });
+
+                AddLogSafe(
+                    "ACC Load was compensated with Unload NOK after the local sensor commit failed. " +
+                    $"Serial={sensor.SerialNumber}, PartTypeID={sensor.AccPartTypeId}",
+                    Logging.ApplicationLogLevel.Warning,
+                    "ACC.SensorLoadCompensatedAfterDatabaseFailure");
+            }
+            catch (Exception ex)
+            {
+                BlockProcessForMaintenance(
+                    $"LOAD SEM REGISTRO LOCAL E FALHA NA COMPENSAÇÃO\n{sensor.SerialNumber}");
+                AddLogSafe(
+                    "Unable to compensate an ACC Load after the local sensor commit failed. " +
+                    $"Serial={sensor.SerialNumber}, Error={ex.Message}",
+                    Logging.ApplicationLogLevel.Critical,
+                    "ACC.SensorLoadCompensationFailed",
+                    ex);
+            }
+        }
+
+        private async Task ConfirmLastSensorAndFinalizeAsync()
+        {
+            if (_sensorCounter < _sensorLimit)
+                return;
+
+            if (_pendingAccSensor == null)
+            {
+                OpenFinishedBoxDialog();
+                return;
+            }
+
+            txtComponentSerial.Enabled = false;
+            listBoxReadedSensors.SelectedIndex = 0;
+            UpdateScrapButtonState();
+
+            var confirmation = MessageBox.Show(
+                $"O último sensor lido foi {_pendingAccSensor.SerialNumber}.\n\n" +
+                "Você garante que TODOS os sensores estão seguros dentro da caixa?\n\n" +
+                "SIM: envia Unload OK do último sensor e continua para a etiqueta final.\n" +
+                "NÃO: mantém o último sensor disponível para marcar como scrap.",
+                "CONFIRMAR SENSORES NA CAIXA",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (confirmation != DialogResult.Yes)
+            {
+                lblCheckResult.BackColor = Color.FromArgb(255, 193, 7);
+                lblCheckResult.ForeColor = Color.Black;
+                lblCheckResult.Text =
+                    $"ÚLTIMO SENSOR PENDENTE\n{_pendingAccSensor.SerialNumber}\n" +
+                    "MARQUE COMO SCRAP OU CLIQUE AQUI PARA CONFIRMAR";
+                UpdateScrapButtonState();
+                return;
+            }
+
+            _sensorOperationInProgress = true;
+            UpdateContinueProcessButton();
+            try
+            {
+                if (!await CompleteSensorInAccAsync(_pendingAccSensor, approved: true))
+                    return;
+
+                _pendingAccSensor = null;
+                btnRemoveSensor.Enabled = false;
+                OpenFinishedBoxDialog();
+            }
+            finally
+            {
+                _sensorOperationInProgress = false;
+                UpdateContinueProcessButton();
+            }
+        }
+
+        private void listBoxReadedSensors_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdateScrapButtonState();
+        }
+
+        private void UpdateScrapButtonState()
+        {
+            btnRemoveSensor.Enabled =
+                !_criticalProcessBlock &&
+                !_sensorOperationInProgress &&
+                listBoxReadedSensors.Enabled &&
+                listBoxReadedSensors.SelectedIndex == 0 &&
+                _pendingAccSensor?.AccState == SensorAccState.Loaded &&
+                !string.IsNullOrWhiteSpace(listBoxReadedSensors.SelectedItem?.ToString()) &&
+                string.Equals(
+                    listBoxReadedSensors.SelectedItem?.ToString(),
+                    _pendingAccSensor.SerialNumber,
+                    StringComparison.OrdinalIgnoreCase);
         }
 
         private void ShowSensorStatusNok(string message)
@@ -2019,32 +2364,29 @@ namespace HondaSensorChecker
             return true;
         }
 
-        private void RestoreSupplierBoxStockForRemovedSensor()
-        {
-            if (_currentSupplierBox == null)
-                return;
-
-            _runtimeSupplierBoxRemaining += 1;
-            if (_currentSupplierBox.QtySupplied > 0 && _runtimeSupplierBoxRemaining > _currentSupplierBox.QtySupplied)
-                _runtimeSupplierBoxRemaining = _currentSupplierBox.QtySupplied;
-
-            txtQtySupplied.Text = $"Q{_runtimeSupplierBoxRemaining}";
-
-            AddLogSafe(
-                "SupplierBox stock restored after scrap removal. " +
-                $"SupplierBox={_currentSupplierBox.UniqueNumber}, " +
-                $"WorkOrderNumber={_currentWorkOrder?.WorkOrderNumber}, " +
-                $"QtyRemaining={_runtimeSupplierBoxRemaining}");
-        }
-
         private void UpdateContinueProcessButton()
         {
             btnContinueProcess.Enabled = _currentWorkOrder == null && txtWorkOrderNumber.Enabled;
             btnInterruptProcess.Enabled =
+                !_criticalProcessBlock &&
                 !_sensorOperationInProgress &&
                 _currentWorkOrder != null &&
                 _currentProduct != null &&
                 _currentZfBox?.InProgress == true;
+            UpdateScrapButtonState();
+        }
+
+        private void BlockProcessForMaintenance(string message)
+        {
+            _criticalProcessBlock = true;
+            txtComponentSerial.Enabled = false;
+            btnForceChangeSupplierBox.Enabled = false;
+            btnRemoveSensor.Enabled = false;
+            btnInterruptProcess.Enabled = false;
+            lblCheckResult.Enabled = true;
+            lblCheckResult.BackColor = Color.DarkRed;
+            lblCheckResult.ForeColor = Color.White;
+            lblCheckResult.Text = $"NOK CRÍTICO\n{message}\nACIONAR MANUTENÇÃO";
         }
 
         private static string NormalizeUserName(string userName)
