@@ -1,8 +1,19 @@
-# Honda Sensor Checker
+# Honda Sensor Checker — Rastreabilidade e integração ACC
 
 Aplicação Windows para controlar a montagem e a expedição de caixas de sensores Honda. O sistema relaciona cada sensor à Work Order SAP, ao produto, à SupplierBox de origem, à caixa ZF de destino e ao operador responsável. A integração ACC usa `PartTypeList` e `PartTypeData` para selecionar e configurar o Part Number da Work Order e `Load`/`Unload` para cada sensor.
 
-Este documento serve como manual para Operação, Manutenção e Engenharia e descreve o comportamento implementado no código atual.
+Este documento serve como manual oficial para Operação, Manutenção e Engenharia. Ele descreve o comportamento implementado no código atual, os limites de responsabilidade de cada perfil, a integração ACC, a persistência dos dados, os procedimentos de diagnóstico e os testes mínimos para liberação.
+
+| Documento | Aplicação |
+|---|---|
+| Sistema | Honda Sensor Checker |
+| Plataforma | Windows Forms, .NET 10, x64 |
+| Banco | SQLite local com migrations do Entity Framework Core |
+| Integração | ZF ACCComm |
+| Público | Operação, Manutenção e Engenharia |
+| Fonte de verdade | Código, migrations e `appsettings.json` deste repositório |
+
+> Sempre que houver diferença entre uma cópia impressa deste manual e o comportamento de uma versão instalada, preserve o processo, registre a versão do executável e acione a Engenharia. Não corrija rastreabilidade diretamente no banco sem análise e backup.
 
 ## Sumário
 
@@ -15,6 +26,9 @@ Este documento serve como manual para Operação, Manutenção e Engenharia e de
 - [Arquitetura e dados](#arquitetura-e-dados)
 - [Configuração e implantação](#configuração-e-implantação)
 - [Pontos técnicos a verificar](#pontos-técnicos-a-verificar)
+- [Referência de métodos](#referência-de-métodos)
+- [Testes de aceitação](#testes-de-aceitação)
+- [Controle de mudanças](#controle-de-mudanças)
 
 ## Visão geral
 
@@ -49,6 +63,29 @@ O contador no canto superior mostra `lidos/meta`, por exemplo `010/060`.
 
 O usuário é localizado pelo ZF-ID cadastrado, comparado ao usuário atual do Windows sem domínio ou sufixo de e-mail.
 
+### Mapa da tela principal
+
+| Área | Campo ou botão | Finalidade |
+|---|---|---|
+| Cabeçalho | `+ USUÁRIO` | Cadastro de operadores e administradores |
+| Cabeçalho | `LOGS` | Consulta da auditoria persistida no banco |
+| Cabeçalho | `+ PRODUTO` | Cadastro da relação prefixo / ZF PN / ELSEN-ELMOD |
+| Cabeçalho | contador `000/000` | Quantidade de sensores bons lidos e meta da caixa |
+| SAP - Work Order | Nº da ordem | Leitura e changeover da ordem no ACC |
+| SAP - Work Order | PartNumber Final | Identificação do produto final de uma ordem nova |
+| SAP - Work Order | Quantidade a enviar | Meta de sensores bons da caixa ZF |
+| ZF - Logistic Label | Número Único | Identificação da SupplierBox |
+| ZF - Logistic Label | PartNumber ZF | Produto da SupplierBox |
+| ZF - Logistic Label | Quantidade da Caixa | Quantidade inicial ou saldo operacional |
+| Sensor Checker | Leitura | Serial individual do sensor |
+| Sensor Checker | painel colorido | Estado, orientação e recuperação da etapa atual |
+| Ações | Consultar componente | Histórico de um serial |
+| Ações | Consultar ordem / HU | HUs finalizadas por Work Order e seus componentes |
+| Ações | Interromper processo | Pausa autorizada e persistente da caixa atual |
+| Ações | Continuar processo | Retomada manual de uma caixa em andamento |
+| Ações | Trocar SupplierBox | Substituição da origem logística sem mudar o produto |
+| Ações | Marcar como scrap | `Unload NOK` exclusivo do último sensor pendente |
+
 ---
 
 # Manual do Operador
@@ -60,6 +97,8 @@ O usuário é localizado pelo ZF-ID cadastrado, comparado ao usuário atual do W
 3. Confirme que a tela mostra `LEIA A WORK-ORDER`.
 
 Se aparecer `USUÁRIO NÃO REGISTRADO`, não prossiga. Solicite a um administrador o cadastro do seu ZF-ID.
+
+A aplicação aceita somente uma instância por estação. Se já estiver aberta, uma segunda execução exibirá uma mensagem e será encerrada. Antes de concluir que o sistema não abriu, verifique a barra de tarefas e as janelas minimizadas.
 
 ## 2. Ler a Work Order
 
@@ -268,7 +307,7 @@ Leia na ordem:
 
 1. Número único da caixa final: `1J` + 10 caracteres.
 2. PartNumber Final: `P` + 10 ou 11 caracteres.
-3. Work Order: `O` + 12 caracteres.
+3. Work Order: o mesmo formato válido lido no início (`O11...`, `O12...` ou `OD...`).
 4. Lote: `H` + 10 caracteres.
 
 O PartNumber Final e a Work Order precisam ser iguais aos valores usados no início do processo.
@@ -343,7 +382,7 @@ A consulta mostra:
 - SupplierBox;
 - caixa ZF;
 - nome do usuário que realizou o scan;
-- situação `Em andamento` ou `Finalizado`.
+- situação `Load pendente`, `Em andamento`, `Finalizado` ou `Scrap - operador`, conforme o registro.
 
 ## 13. Consultar caixas finalizadas por Work Order
 
@@ -363,6 +402,28 @@ A primeira tela mostra somente caixas finalizadas, com HU `1J...`, lote, quantid
 | `O12##########` | Work Order Rework | Peças que passaram por retrabalho |
 
 Cada `#` representa um dígito. A aplicação remove somente a primeira letra `O` antes de gravar a ordem no banco e antes de procurar o valor na `Description` do `PartTypeList`. Assim, por exemplo, `O12##########` é tratado internamente como `12##########`.
+
+## 14. O que o operador não deve fazer
+
+- Não misture part numbers na mesma caixa ZF ou durante a troca de SupplierBox.
+- Não confirme o último sensor antes de garantir que todas as peças estão fisicamente seguras na caixa.
+- Não tente marcar como scrap um sensor antigo da lista; somente o primeiro item ainda pode estar pendente no ACC.
+- Não encerre a tela verde sem concluir a sequência da etiqueta final.
+- Não abra uma segunda instância e não copie, substitua ou edite o banco com a aplicação aberta.
+- Não repita scans após erro sem ler a mensagem do painel.
+- Não use etiquetas, ordens ou seriais de teste no ambiente produtivo sem autorização.
+- Não desligue a estação durante `LOAD`, `UNLOAD`, gravação da etiqueta final ou atualização do banco.
+
+## 15. Encerramento e reinício
+
+O fechamento inesperado não finaliza nem pausa automaticamente a caixa. Na próxima abertura, uma caixa ativa e não pausada é retomada automaticamente. Uma caixa interrompida pelo botão continua aguardando até ser escolhida em **CONTINUAR PROCESSO**.
+
+Antes de desligamento planejado, escolha uma das condições:
+
+1. Finalize normalmente a caixa e a etiqueta; ou
+2. use **INTERROMPER PROCESSO**, conclua as três etapas de autorização e confirme que a tela voltou ao início.
+
+Se houver um sensor em estado `Loaded`, sua identidade permanece no banco. A retomada não repete o `Load`; o sensor continua sendo o único candidato a `Unload OK` ou scrap. Se forem encontrados vários sensores `Loaded`, o sistema bloqueia a produção para reconciliação da Manutenção.
 
 ---
 
@@ -385,11 +446,11 @@ A estação precisa de:
 ```json
 {
   "Acc": {
-    "IpAddress": "10.219.61.125",
+    "IpAddress": "10.219.61.136",
     "Port": 3802,
-    "DllVersion": "1.0.7.15",
+    "DllVersion": "2.1.0.0",
     "ProductType": "SENSOR",
-    "Station": "10.1"
+    "Station": "20.1"
   }
 }
 ```
@@ -400,19 +461,13 @@ Após alterar o arquivo, reinicie a aplicação. As configurações são carrega
 
 A aplicação usa um mutex global do Windows e permite apenas uma instância por estação. Ao tentar abrir uma segunda instância, o usuário recebe uma mensagem e o segundo processo é encerrado antes de acessar o banco.
 
-### Bypass do ACC para desenvolvimento
+### Identificação da compilação Debug
 
-Em uma compilação `Debug`, a Work Order de teste abaixo ativa o bypass do ACC:
+Compilações `Debug` exibem a palavra **DEBUG**, em vermelho, ao lado do contador de sensores. Isso identifica uma versão de desenvolvimento, mas **não significa que o ACC esteja ignorado**.
 
-```text
-O012345678912
-```
+O código mantém a constante histórica `O012345678912` para desenvolvimento, porém a ativação do bypass no changeover está desabilitada na versão atual. Portanto, inclusive em `Debug`, uma ordem aceita segue `PartTypeList`, `PartTypeData`, `Load` e `Unload` normalmente. Não use essa chave como método de teste sem ACC.
 
-Nesse modo, o sistema mantém as validações e o fluxo local, mas não envia `PartTypeList`, `PartTypeData`, `Load` ou `Unload` ao ACC. A ativação e cada ciclo de sensor ignorado são registrados no log como eventos de nível `Warning`.
-
-Para tornar o ambiente de teste evidente, compilações `Debug` exibem a palavra **DEBUG**, em vermelho, ao lado do contador de sensores.
-
-O bypass é protegido por compilação condicional (`#if DEBUG`). Em uma compilação `Release`, a chave e a lógica de bypass não fazem parte do executável; a mesma Work Order segue o fluxo ACC normal.
+Em `Release`, o indicador DEBUG e os trechos protegidos por `#if DEBUG` não são compilados. A versão destinada ao time operacional deve sempre ser publicada em `Release`.
 
 ## 3. Banco de dados
 
@@ -450,7 +505,7 @@ Não copie o banco enquanto uma finalização ou leitura estiver sendo gravada.
 No PowerShell da estação:
 
 ```powershell
-Test-NetConnection 10.219.61.125 -Port 3802
+Test-NetConnection 10.219.61.136 -Port 3802
 ```
 
 Interpretação:
@@ -458,7 +513,7 @@ Interpretação:
 - `TcpTestSucceeded: True`: a porta está acessível; prossiga com análise de estação, produto, DLL e resposta do ACC.
 - `TcpTestSucceeded: False`: verifique cabo, VLAN, rota, firewall, servidor e serviço ACC.
 
-Um teste TCP positivo não garante que a estação `10.1` ou o produto estejam configurados no ACC.
+Um teste TCP positivo não garante que a estação `20.1` ou o produto estejam configurados no ACC.
 
 ## 5. Diagnóstico por sintoma
 
@@ -493,6 +548,13 @@ Mais de um `PartDesc` contém o mesmo número. O sistema bloqueia o `PartTypeDat
 - não force gravações diretamente no banco;
 - após corrigir a causa, clique no painel NOK e releia o sensor.
 
+Identifique também qual comando falhou:
+
+- `Load` do sensor atual: o serial novo não deve ser considerado aceito;
+- `Unload OK` do sensor anterior: o próximo `Load` não é enviado e o sensor anterior continua pendente;
+- `Unload NOK` de scrap: o sensor continua pendente e não deve ser removido fisicamente do controle até o sucesso;
+- `Unload OK` do último sensor: a tela verde não é aberta enquanto a conclusão não for confirmada pelo ACC.
+
 ### `PARTTYPEID NÃO CARREGADO`
 
 - volte ao campo da Work Order e provoque novamente sua validação;
@@ -523,6 +585,27 @@ Não existe nenhuma `ZfBox` com `InProgress = true`. Verifique se a caixa foi fi
 - preserve o banco antes de qualquer reparo;
 - registre a mensagem completa;
 - escale para Engenharia se houver corrupção ou falha de migration.
+
+### `PROCESSO BLOQUEADO` ou reconciliação necessária
+
+Esse bloqueio protege contra divergência entre o que o ACC aceitou e o que o SQLite conseguiu registrar. Não reinicie scans nem altere o banco para “liberar” a tela.
+
+1. Preserve o arquivo `.log` do horário da falha.
+2. Identifique serial, Work Order, `PartTypeID`, comando e retorno ACC.
+3. Consulte no banco o `AccState` e os identificadores do ciclo.
+4. Confirme no ACC se o `Load` ou `Unload` foi contabilizado.
+5. Somente após reconciliar os dois lados, defina com Engenharia a ação corretiva.
+
+### Aplicação retomou uma caixa inesperadamente
+
+- confirme se a caixa possui `InProgress = true` e `IsPaused = false`;
+- verifique se o fechamento anterior ocorreu sem **INTERROMPER PROCESSO**;
+- consulte `CurrentSupplierBoxId`, sensores vinculados e logs do encerramento;
+- não finalize ou apague a caixa apenas para limpar a tela.
+
+### Vários sensores pendentes no ACC
+
+O fluxo correto admite no máximo um sensor `Loaded` por caixa. Mais de um registro pendente indica dado legado, edição externa ou falha de persistência e provoca bloqueio crítico. Compare cada serial com o ACC antes de qualquer correção.
 
 ## 6. Logs disponíveis
 
@@ -674,8 +757,9 @@ Consequências:
 
 - uma caixa ZF pode consumir sensores de várias SupplierBoxes do mesmo produto;
 - o histórico preserva a SupplierBox individual de cada sensor;
-- remover um sensor em andamento ajusta o saldo em memória;
+- marcar o último sensor como scrap reduz o contador de bons, mas não devolve a unidade ao saldo operacional, pois o sensor foi fisicamente consumido;
 - finalizar a caixa debita o total real utilizado por SupplierBox;
+- o débito final inclui sensores bons e sensores marcados como scrap;
 - o saldo persistido nunca é reduzido abaixo de zero;
 - a zeragem manual grava zero imediatamente.
 
@@ -694,7 +778,7 @@ Resultado exigido: exatamente uma correspondência
 Comando de configuração: PartTypeData(Station, ProductType, DllVersion, PartTypeID)
 ```
 
-O `PartTypeID`, o `PartDesc` escolhido e o retorno de `PartTypeData` ficam somente em memória. O comando `PartTypeData` baixa os parâmetros do Part Number e configura o ACC com o modelo em produção. O botão da SupplierBox apenas verifica que a descrição carregada continua correspondendo à Work Order atual. Ao retomar uma caixa após reiniciar a aplicação, `PartTypeList` e `PartTypeData` são executados novamente antes de restaurar o processo.
+O `PartTypeID`, o `PartDesc` escolhido e o retorno de `PartTypeData` formam o contexto ACC em memória. Quando um sensor é lido, seu `PartTypeID` e os identificadores retornados pelo `Load` também são persistidos no próprio registro. O comando `PartTypeData` baixa os parâmetros do Part Number e configura o ACC com o modelo em produção. O botão da SupplierBox apenas verifica que a descrição carregada continua correspondendo à Work Order atual. Ao retomar uma caixa após reiniciar a aplicação, `PartTypeList` e `PartTypeData` são executados novamente antes de restaurar o processo.
 
 ### Ciclo do sensor
 
@@ -725,7 +809,7 @@ Tecnologias:
 - Entity Framework Core 10;
 - SQLite;
 - injeção de dependências com Generic Host;
-- `ZF.ACCComm.dll` versão configurada `1.0.7.15`;
+- `ZF.ACCComm.dll` com versão lógica configurada `2.1.0.0`;
 - plataforma alvo x64.
 
 Entidades:
@@ -811,14 +895,16 @@ Antes de liberar uma versão:
 
 | Etapa | Formato | Exemplo | Valor armazenado/usado |
 |---|---|---|---|
-| Work Order | `O` + 12 caracteres | `O123456789012` | 12 caracteres sem `O` |
+| Work Order normal | `O11` + 10 dígitos | `O11##########` | 12 caracteres sem `O` |
+| Work Order rework | `O12` + 10 dígitos | `O12##########` | 12 caracteres sem `O` |
+| Work Order dummy | `OD` + 15 dígitos | `OD###############` | 16 caracteres sem `O` |
 | PartNumber Final | `P` + 10 ou 11 caracteres | `PELMOD00660` | sem `P` |
 | Número único SupplierBox | `S` + 10 caracteres | `S1234567890` | 10 caracteres sem `S` |
 | ZF PartNumber | `P` + 8 caracteres | `PA013F520` | sem `P`; valida a SupplierBox |
 | Quantidade SupplierBox | `Q` + 3 dígitos | `Q420` | inteiro positivo |
 | Serial do sensor | 9 caracteres | conforme produto | completo; prefixo = 4 primeiros |
 | Número caixa final | `1J` + 10 caracteres | `1J1234567890` | 10 caracteres sem `1J` |
-| Work Order final | `O` + 12 caracteres | `O123456789012` | validada contra o início |
+| Work Order final | mesmo formato válido do início | `O11...`, `O12...` ou `OD...` | normalizada e validada contra o início |
 | Lote final | `H` + 10 caracteres | `H1234567890` | 10 caracteres sem `H` |
 
 Todas as entradas são aparadas e convertidas para maiúsculas antes da validação.
@@ -853,15 +939,38 @@ Todas as entradas são aparadas e convertidas para maiúsculas antes da validaç
 
 ```text
 Tela limpa
-  → Work Order confirmada
+  → Work Order válida
+  → PartTypeList: uma correspondência
+  → PartTypeData: PartTypeID carregado
+  → produto e quantidade confirmados
   → SupplierBox confirmada
-  → PartTypeID ACC carregado
   → ZfBox InProgress = true
-  → Sensores InProgress = true
-  → Meta atingida
+  → Sensor N: Loaded
+  → próximo scan: Sensor N = UnloadedOk
+  → Sensor N+1 = Loaded
+  → opcional: último Loaded = UnloadedNok + IsScrap
+  → quantidade de sensores bons atinge a meta
+  → último sensor = UnloadedOk
   → Etiqueta final validada
   → ZfBox e sensores InProgress = false
 ```
+
+Estados persistidos do sensor:
+
+| `AccState` | Significado | Próxima ação permitida |
+|---|---|---|
+| `NotLoaded` | Estado reservado pelo modelo; ciclo ainda não iniciado | Não deve aparecer em produção normal |
+| `Loaded` | ACC recebeu o componente e aguarda conclusão | `Unload OK` no próximo scan/finalização ou `Unload NOK` por scrap |
+| `UnloadedOk` | Componente aceito no processo | Nenhuma nova chamada para o serial |
+| `UnloadedNok` | Componente descarregado como NOK | Serial permanece bloqueado e auditado como scrap |
+
+Estados persistidos da caixa:
+
+| `InProgress` | `IsPaused` | Interpretação |
+|---|---|---|
+| `true` | `false` | Caixa ativa; retomada automática após reinício |
+| `true` | `true` | Caixa interrompida; retomada manual |
+| `false` | `false` | Caixa finalizada com HU e lote |
 
 ## Relacionamentos principais
 
@@ -936,11 +1045,253 @@ Antes da produção, cada modelo precisa ter um prefixo de sensor inequívoco ou
 
 ## 2. Mapeamento dos bits de resultado
 
-O processo usa o bit zero geral definido pela especificação: `statusBits=1/failureBits=0` para OK e `statusBits=0/failureBits=1` para NOK. Engenharia deve confirmar que a estação `10.1` não exige bits adicionais específicos do processo.
+O processo usa o bit zero geral definido pela especificação: `statusBits=1/failureBits=0` para OK e `statusBits=0/failureBits=1` para NOK. Engenharia deve confirmar que a estação `20.1` não exige bits adicionais específicos do processo.
 
 ## 3. Falha local após sucesso no ACC
 
 Se o `Load` concluir no ACC e a gravação local falhar, a aplicação tenta compensar imediatamente com `Unload NOK` e registra uma ocorrência crítica se a compensação também falhar. Se um `Unload` concluir e a atualização local falhar, o processo permanece bloqueado para intervenção da Manutenção, evitando o avanço silencioso.
+
+## 4. Mais de uma caixa ativa
+
+Na inicialização, se houver várias caixas não pausadas com `InProgress = true`, a aplicação registra um Warning e retoma somente a mais recente. As demais não são finalizadas automaticamente. Engenharia deve investigar a origem e reconciliar cada caixa antes de produção contínua.
+
+## 5. Unicidade protegida pela aplicação
+
+As validações de RE, ZF-ID, part numbers e serial são executadas pela aplicação; o modelo atual não declara índices únicos para todos esses campos no SQLite. Edição externa ou importação direta pode criar duplicidades que a interface normal impediria. Não utilize ferramentas de banco como caminho operacional.
+
+---
+
+# Referência de métodos
+
+Esta seção é voltada a manutenção de software. Os nomes representam os pontos de entrada e regras mais importantes da versão atual.
+
+## `Program.cs`
+
+### `Program.Main()`
+
+- inicializa o Windows Forms;
+- cria o mutex global que impede duas instâncias;
+- prepara log e caminho do banco;
+- aplica migrations;
+- executa o seed somente no primeiro banco;
+- inicia a tela principal;
+- registra falhas globais e encerramento.
+
+### `ResolveDatabasePath(...)`
+
+Resolve `C:\ProgramData\HondaSensorChecker\Database\HondaSensorChecker.db`. Se o novo arquivo não existir e o legado existir, aciona a migração física antes de abrir o contexto.
+
+### `MoveLegacyDatabaseFiles(...)`
+
+Move o banco legado e, se presentes, os arquivos `-wal` e `-shm`. Em falha parcial, tenta devolver os arquivos já movidos ao local original.
+
+### `RegisterGlobalExceptionLogging()`
+
+Registra exceções da thread de interface, exceções não tratadas do domínio e tasks não observadas no log técnico.
+
+## `WorkOrderRules.cs`
+
+### `TryNormalizeScannedLabel(...)`
+
+Valida os formatos `OD`, `O11` e `O12`, converte para maiúsculas e remove somente a primeira letra `O`.
+
+### `TryNormalizeForLookup(...)`
+
+Permite às telas de consulta localizar uma ordem digitada com ou sem `O`, mantendo as mesmas regras de formato.
+
+### `FormatStoredNumber(...)`
+
+Recompõe o `O` para exibição de um número armazenado de forma normalizada.
+
+## `Main.cs`
+
+### `HSCMainForm_Load(...)`
+
+Identifica o usuário do Windows, verifica seu cadastro, configura permissões administrativas e tenta retomar uma caixa ativa não pausada.
+
+### `CleanForm()`
+
+Limpa o contexto em memória e restaura o fluxo inicial. Não apaga caixas ou sensores persistidos.
+
+### `txtWorkOrderNumber_Leave(...)`
+
+Normaliza a Work Order e chama o carregamento do modelo ACC. Um NOK nessa etapa deve voltar para o campo da ordem, não para o sensor.
+
+### `TryLoadAccPartTypeDataAsync(...)`
+
+Valida a configuração, conecta ao ACC, executa `PartTypeList`, filtra a Description pela ordem, exige uma única correspondência e chama `PartTypeData` com o `PartTypeID` encontrado.
+
+### `btnLogisticLabelOk_Click(...)`
+
+Valida a SupplierBox e o produto travado, cria ou atualiza o contexto da caixa ZF e libera o scan. Não executa changeover nem troca o PartNumber ACC.
+
+### `txtComponentSerial_KeyPress(...)`
+
+Executa as validações locais, reserva estoque, conclui o sensor pendente com `Unload OK`, envia `Load` do novo sensor e persiste o estado `Loaded`. Um novo sensor só entra após a conclusão segura do anterior.
+
+### `LoadSensorInAccAsync(...)`
+
+Envia `Load` com estação, produto, versão, `PartTypeID` e serial. Retorna `CycleID` e `UnitPartTypeID` quando fornecidos pela DLL.
+
+### `CompleteSensorInAccAsync(...)`
+
+Envia `Unload OK` ou `Unload NOK`, atualiza `AccState`, horário, informações da resposta e, no NOK, a auditoria do scrap. Uma falha de persistência após sucesso externo bloqueia o processo.
+
+### `TryCompensateUnpersistedLoadAsync(...)`
+
+Se o ACC aceitou o `Load`, mas o sensor não pôde ser gravado, tenta `Unload NOK` compensatório. Falha nessa compensação é crítica.
+
+### `ConfirmLastSensorAndFinalizeAsync()`
+
+Exige confirmação física do último sensor. `SIM` conclui `Unload OK`; `NÃO` mantém o sensor `Loaded` para possível scrap.
+
+### `btnRemoveSensor_Click(...)`
+
+Aceita somente o primeiro item da lista quando ele é o sensor pendente. Solicita confirmação, executa `Unload NOK`, grava o scrap e reduz a contagem de sensores bons.
+
+### `btnInterruptProcess_Click(...)`
+
+Executa autorização por RE administrativo, duas confirmações e persiste `IsPaused = true` e a SupplierBox atual.
+
+### `ResumePersistedProcessAsync(...)`
+
+Recupera ordem, produto, caixa, sensores e estado ACC, refaz `PartTypeData` e restaura ou solicita a SupplierBox conforme o tipo de retomada.
+
+### `TryResumeActiveProcessOnStartupAsync()`
+
+Procura a caixa mais recente com `InProgress = true` e `IsPaused = false` e inicia a retomada automática.
+
+### `RetryCurrentStageAfterNok()`
+
+Reabre somente a etapa correspondente ao erro registrado em `_retryTarget`, impedindo saltos indevidos para o campo de sensor.
+
+### `BlockProcessForMaintenance(...)`
+
+Trava as ações de produção quando o estado externo do ACC pode ter divergido do banco local.
+
+## `Windows/FinishedBox.cs`
+
+### `PersistFinishedBox()`
+
+Confirma que a quantidade de sensores bons é igual à meta e que todos os estados ACC estão resolvidos; grava HU e lote; finaliza caixa e sensores; debita todas as peças consumidas por SupplierBox; registra auditoria.
+
+## Telas de consulta e administração
+
+- `ComponentHistoryDialog.BuscarHistorico()`: consulta um serial e mostra rastreabilidade, operador e status.
+- `WorkOrderFinishedBoxesDialog.SearchFinishedBoxes()`: lista HUs finalizadas da ordem.
+- `WorkOrderFinishedBoxesDialog.OpenSelectedBox()`: abre os componentes da HU selecionada.
+- `Logs.ApplyFilters()`: combina pesquisa, operador e período na tela de auditoria.
+- `Products`: cria, edita e remove produtos respeitando validações e dependências.
+- `Users`: cria, edita e remove usuários respeitando unicidade, permissão e dependências.
+
+## Banco, migrations e repositórios
+
+| Migration | Finalidade |
+|---|---|
+| `20260203231817_InitialCreate` | Estrutura inicial das entidades e relacionamentos |
+| `20260818180000_AddPersistentProcessState` | Pausa persistente e SupplierBox corrente da caixa |
+| `20260825120000_AddSensorAccLifecycleAndScrapAudit` | Estados do ciclo ACC e auditoria completa do scrap |
+
+Os repositórios concentram operações de entidade. `UnitOfWorkRepository.Commit(...)` é o limite comum de persistência. O `DataContext` configura índices, relacionamentos e regras de exclusão restritiva.
+
+---
+
+# Testes de aceitação
+
+Execute estes testes com etiquetas controladas e autorização do responsável pelo ACC. Preserve banco e logs do ciclo.
+
+## 1. Inicialização
+
+- [ ] Primeira execução cria pasta, banco, migrations, administrador inicial e produtos seed.
+- [ ] Banco legado é movido com `-wal`/`-shm` quando aplicável.
+- [ ] Banco já existente no caminho novo é preservado.
+- [ ] Segunda instância é recusada.
+- [ ] Usuário não cadastrado não entra no processo.
+- [ ] Build Debug mostra `DEBUG`; Release não mostra.
+
+## 2. Work Order e produto
+
+- [ ] `O11` normal é aceita.
+- [ ] `O12` rework é aceita.
+- [ ] `OD` dummy é aceita.
+- [ ] Formato incorreto é rejeitado.
+- [ ] Zero correspondências no `PartTypeList` bloqueia o avanço.
+- [ ] Mais de uma correspondência bloqueia o avanço.
+- [ ] Correspondência única executa `PartTypeData` correto.
+- [ ] Ordem existente recupera o produto.
+- [ ] Ordem nova exige PartNumber final cadastrado.
+
+## 3. SupplierBox
+
+- [ ] Caixa existente recupera produto e saldo.
+- [ ] Caixa nova exige `S...`, `P...` e `Q###` válidos.
+- [ ] Produto diferente da Work Order é rejeitado.
+- [ ] Troca manual mantém o mesmo produto e `PartTypeID`.
+- [ ] Opções de zeragem e uso além do saldo são registradas.
+- [ ] Quantidade exibida cai uma única unidade por sensor consumido.
+
+## 4. Ciclo ACC e scrap
+
+- [ ] Primeiro sensor recebe somente `Load`.
+- [ ] Segundo sensor provoca `Unload OK` do primeiro antes do próprio `Load`.
+- [ ] Falha no `Unload OK` impede o `Load` seguinte.
+- [ ] Serial, prefixo ou produto inválido não consome estoque.
+- [ ] Serial duplicado é rejeitado.
+- [ ] Somente o primeiro item da lista permite scrap.
+- [ ] Scrap executa `Unload NOK`, reduz o contador bom e não restaura saldo.
+- [ ] Sensor scrapado não pode ser relido e identifica o operador.
+- [ ] Último sensor exige confirmação física.
+- [ ] Resposta `NÃO` mantém o último sensor disponível para scrap.
+- [ ] Tela verde abre somente após todos os Unloads resolvidos.
+
+## 5. Persistência e retomada
+
+- [ ] Fechamento sem interrupção retoma automaticamente a caixa.
+- [ ] Interrupção exige RE administrador e duas confirmações.
+- [ ] Caixa pausada não retoma automaticamente.
+- [ ] **CONTINUAR PROCESSO** recupera caixa, contador e sensores.
+- [ ] `PartTypeData` é refeito na retomada.
+- [ ] Sensor `Loaded` é recuperado sem repetir `Load`.
+- [ ] Mais de um `Loaded` provoca bloqueio para Manutenção.
+
+## 6. Finalização e consultas
+
+- [ ] HU, PartNumber final, Work Order e lote são lidos na sequência.
+- [ ] PartNumber ou Work Order divergente é rejeitado.
+- [ ] Meta considera somente sensores bons.
+- [ ] Débito da SupplierBox inclui bons e scraps, sem ficar negativo.
+- [ ] Consulta de componente mostra operador do scan.
+- [ ] Consulta de ordem mostra somente HUs finalizadas.
+- [ ] Duplo clique e botão abrem os componentes da HU.
+- [ ] Logs do banco e arquivo contêm o ciclo testado.
+
+## 7. Falhas controladas
+
+- [ ] Servidor ACC indisponível gera NOK e mantém o foco na etapa correta.
+- [ ] Clique no painel vermelho retoma Work Order ou sensor conforme a origem.
+- [ ] Falha local após `Load` tenta compensação com `Unload NOK`.
+- [ ] Falha local após `Unload` bloqueia o processo para reconciliação.
+- [ ] Reinício durante uma caixa não duplica contagem nem comando `Load`.
+
+---
+
+# Controle de mudanças
+
+Ao liberar uma versão, atualize esta tabela e guarde o pacote publicado junto ao registro da validação.
+
+| Data | Versão | Alteração | Responsável |
+|---|---|---|---|
+| 2026-08-25 | Atual | Manual consolidado com fluxo ACC adiado, scrap, persistência, consultas, logs e testes | Engenharia |
+
+Informações que devem acompanhar cada release:
+
+- hash ou tag do Git;
+- versão do executável;
+- versão física da `ZF.ACCComm.dll` e valor de `DllVersion` configurado;
+- IP, porta, produto e Station do ambiente;
+- migration mais recente aplicada;
+- backup do banco anterior;
+- resultado do checklist e responsável pelo teste operacional.
 
 ---
 
@@ -956,7 +1307,7 @@ Se o `Load` concluir no ACC e a gravação local falhar, a aplicação tenta com
 - [ ] Conectividade TCP com o ACC validada.
 - [ ] `PartTypeList` encontra exatamente uma Description contendo a Work Order sem `O`.
 - [ ] `PartTypeData` conclui com o `PartTypeID` encontrado.
-- [ ] `Load/Unload` validados com a estação `10.1`.
+- [ ] `Load/Unload` validados com a estação `20.1`.
 - [ ] Ao ler o sensor seguinte, o anterior recebe `Unload OK` antes do novo `Load`.
 - [ ] Somente o primeiro item da lista permite scrap e recebe `Unload NOK`.
 - [ ] O último sensor exige confirmação antes da etiqueta final.
