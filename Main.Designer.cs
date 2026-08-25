@@ -497,9 +497,9 @@
             btnConsultComponent.Text = "CONSULTAR COMPONENTE";
             btnConsultComponent.UseVisualStyleBackColor = true;
             btnConsultComponent.Click += btnConsultComponent_Click;
-            //
+            // 
             // btnConsultFinishedBoxes
-            //
+            // 
             btnConsultFinishedBoxes.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnConsultFinishedBoxes.Location = new Point(7, 169);
             btnConsultFinishedBoxes.Margin = new Padding(3, 4, 3, 4);
@@ -569,7 +569,7 @@
             listBoxReadedSensors.Location = new Point(7, 359);
             listBoxReadedSensors.Margin = new Padding(3, 4, 3, 4);
             listBoxReadedSensors.Name = "listBoxReadedSensors";
-            listBoxReadedSensors.Size = new Size(306, 101);
+            listBoxReadedSensors.Size = new Size(306, 84);
             listBoxReadedSensors.TabIndex = 3;
             // 
             // label7

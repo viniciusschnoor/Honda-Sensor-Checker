@@ -41,7 +41,7 @@ namespace HondaSensorChecker
                 .ToList();
 
             lblHuValue.Text = WorkOrderFinishedBoxesDialog.FormatHu(box.UniqueNumber);
-            lblWorkOrderValue.Text = workOrder is null ? "N/D" : $"O{workOrder.WorkOrderNumber}";
+            lblWorkOrderValue.Text = WorkOrderRules.FormatStoredNumber(workOrder?.WorkOrderNumber);
             lblBatchValue.Text = string.IsNullOrWhiteSpace(box.Batch) ? "N/D" : $"H{box.Batch}";
             lblQuantityValue.Text = sensors.Count.ToString();
 

@@ -37,7 +37,7 @@ namespace HondaSensorChecker
         private string _lockedBoxPartNumber = string.Empty;
         private int? _currentAccPartTypeId;
         private string _currentAccPartDescription = string.Empty;
-        private bool _accChangeoverInProgress;
+        private bool _accPartTypeDataInProgress;
         private bool _sensorOperationInProgress;
         private RetryTarget _retryTarget = RetryTarget.WorkOrder;
 
@@ -124,7 +124,7 @@ namespace HondaSensorChecker
             _lockedBoxPartNumber = string.Empty;
             _currentAccPartTypeId = null;
             _currentAccPartDescription = string.Empty;
-            _accChangeoverInProgress = false;
+            _accPartTypeDataInProgress = false;
             _sensorOperationInProgress = false;
             _retryTarget = RetryTarget.WorkOrder;
 #if DEBUG
@@ -287,15 +287,15 @@ namespace HondaSensorChecker
         {
             if (e.KeyChar != (char)Keys.Enter) return;
 
-            var raw = (txtWorkOrderNumber.Text ?? string.Empty).Trim().ToUpper();
+            var raw = (txtWorkOrderNumber.Text ?? string.Empty).Trim().ToUpperInvariant();
 
-            if (raw.Length != 13 || raw[0] != 'O')
+            if (!WorkOrderRules.TryNormalizeScannedLabel(raw, out var workOrderNumber))
             {
-                ShowWarningAndReset("CONFIRA O NÚMERO DA WORK-ORDER", "SAP WORK ORDER");
+                ShowWarningAndReset(
+                    $"CONFIRA O NÚMERO DA WORK-ORDER\n\nFORMATOS ACEITOS:\n{WorkOrderRules.ExpectedFormats}",
+                    "SAP WORK ORDER");
                 return;
             }
-
-            var workOrderNumber = raw.Substring(1, 12);
 
             var existingWorkOrder = _unitOfWork.SapWorkOrders
                 .Find(wo => wo.WorkOrderNumber == workOrderNumber)
@@ -721,7 +721,7 @@ namespace HondaSensorChecker
                 !_currentAccPartDescription.Contains(
                     _currentWorkOrder.WorkOrderNumber, StringComparison.OrdinalIgnoreCase))
             {
-                ShowWorkOrderAccFailure("CHANGEOVER DA WORK ORDER NÃO CARREGADO");
+                ShowWorkOrderAccFailure("PARTTYPE DA WORK ORDER NÃO CARREGADO");
                 return;
             }
 
@@ -830,32 +830,32 @@ namespace HondaSensorChecker
             UpdateContinueProcessButton();
         }
 
-        private async Task<bool> TryPerformAccWorkOrderChangeoverAsync(string workOrderNumber)
+        private async Task<bool> TryLoadAccPartTypeDataAsync(string workOrderNumber)
         {
             if (string.IsNullOrWhiteSpace(workOrderNumber))
                 return false;
 
-#if DEBUG
-            if (string.Equals(workOrderNumber, DebugAccBypassWorkOrder, StringComparison.Ordinal))
-            {
-                _debugAccBypassEnabled = true;
-                _currentAccPartTypeId = 0;
-                _currentAccPartDescription = $"DEBUG ACC BYPASS - WORK ORDER {workOrderNumber}";
+//#if DEBUG
+//            if (string.Equals(workOrderNumber, DebugAccBypassWorkOrder, StringComparison.Ordinal))
+//            {
+//                _debugAccBypassEnabled = true;
+//                _currentAccPartTypeId = 0;
+//                _currentAccPartDescription = $"DEBUG ACC BYPASS - WORK ORDER {workOrderNumber}";
 
-                AddLogSafe(
-                    "ACC bypass enabled by the Debug test Work Order. " +
-                    $"WorkOrderNumber={workOrderNumber}. No ACC command will be sent for this process.",
-                    Logging.ApplicationLogLevel.Warning,
-                    "Debug.AccBypassEnabled");
+//                AddLogSafe(
+//                    "ACC bypass enabled by the Debug test Work Order. " +
+//                    $"WorkOrderNumber={workOrderNumber}. No ACC command will be sent for this process.",
+//                    Logging.ApplicationLogLevel.Warning,
+//                    "Debug.AccBypassEnabled");
 
-                lblCheckResult.BackColor = Color.FromArgb(255, 193, 7);
-                lblCheckResult.ForeColor = Color.Black;
-                lblCheckResult.Text = "MODO DEBUG\nBYPASS DO ACC ATIVO";
-                return true;
-            }
+//                lblCheckResult.BackColor = Color.FromArgb(255, 193, 7);
+//                lblCheckResult.ForeColor = Color.Black;
+//                lblCheckResult.Text = "MODO DEBUG\nBYPASS DO ACC ATIVO";
+//                return true;
+//            }
 
-            _debugAccBypassEnabled = false;
-#endif
+//            _debugAccBypassEnabled = false;
+//#endif
 
             if (_currentAccPartTypeId.HasValue &&
                 _currentAccPartDescription.Contains(workOrderNumber, StringComparison.OrdinalIgnoreCase))
@@ -871,7 +871,7 @@ namespace HondaSensorChecker
                 return false;
             }
 
-            _accChangeoverInProgress = true;
+            _accPartTypeDataInProgress = true;
             _currentAccPartTypeId = null;
             _currentAccPartDescription = string.Empty;
             txtWorkOrderMaterialNumber.Enabled = false;
@@ -883,7 +883,7 @@ namespace HondaSensorChecker
 
             try
             {
-                var changeover = await Task.Run(() =>
+                var partTypeSetup = await Task.Run(() =>
                 {
                     using var client = ZF.ACCComm.Client.ACCCommClient.Connect(
                         ZF.ACCComm.Utils.NetworkUtils.GetEndpoint(_accSettings.IpAddress, _accSettings.Port));
@@ -904,7 +904,8 @@ namespace HondaSensorChecker
                             $"Work Order '{workOrderNumber}' possui {matches.Count} correspondências no ACC.");
 
                     var match = matches[0];
-                    var response = client.ChangeModel(
+
+                    var response = client.PartTypeData(
                         _accSettings.Station,
                         _accSettings.ProductType,
                         _accSettings.DllVersion,
@@ -914,18 +915,19 @@ namespace HondaSensorChecker
                         Response: response);
                 });
 
-                _currentAccPartTypeId = changeover.PartTypeID;
-                _currentAccPartDescription = changeover.Description;
+                _currentAccPartTypeId = partTypeSetup.PartTypeID;
+                _currentAccPartDescription = partTypeSetup.Description;
 
                 AddLogSafe(
-                    "ACC Work Order changeover completed. " +
+                    "ACC Work Order PartTypeData completed. " +
                     $"WorkOrderNumber={workOrderNumber}, " +
-                    $"PartTypeID={changeover.PartTypeID}, " +
-                    $"PartDescription={changeover.Description}, " +
+                    $"PartTypeID={partTypeSetup.PartTypeID}, " +
+                    $"PartDescription={partTypeSetup.Description}, " +
                     $"Station={_accSettings.Station}, " +
-                    $"IntegerParameters={string.Join(',', changeover.Response.IntegerParameterList ?? [])}, " +
-                    $"StringParameters={string.Join(',', changeover.Response.StringParameterList ?? [])}",
-                    eventName: "ACC.WorkOrderChangeoverCompleted");
+                    $"IntegerParameters={string.Join(',', partTypeSetup.Response.IntegerParameterList ?? [])}, " +
+                    $"RealParameters={string.Join(',', partTypeSetup.Response.RealParameterList ?? [])}, " +
+                    $"StringParameters={string.Join(',', partTypeSetup.Response.StringParameterList ?? [])}",
+                    eventName: "ACC.WorkOrderPartTypeDataCompleted");
                 return true;
             }
             catch (Exception ex)
@@ -934,16 +936,16 @@ namespace HondaSensorChecker
                 _currentAccPartDescription = string.Empty;
                 ShowWorkOrderAccFailure(ex.Message);
                 AddLogSafe(
-                    "ACC Work Order changeover failed. " +
+                    "ACC Work Order PartTypeData failed. " +
                     $"WorkOrderNumber={workOrderNumber}, Error={ex.Message}",
                     Logging.ApplicationLogLevel.Error,
-                    "ACC.WorkOrderChangeoverFailed",
+                    "ACC.WorkOrderPartTypeDataFailed",
                     ex);
                 return false;
             }
             finally
             {
-                _accChangeoverInProgress = false;
+                _accPartTypeDataInProgress = false;
             }
         }
 
@@ -1612,7 +1614,7 @@ namespace HondaSensorChecker
 
             StartContinueProcess(zfBox);
 
-            if (!await TryPerformAccWorkOrderChangeoverAsync(selectedWorkOrder.WorkOrderNumber))
+            if (!await TryLoadAccPartTypeDataAsync(selectedWorkOrder.WorkOrderNumber))
                 return false;
 
             if (zfBox.IsPaused)
@@ -1725,11 +1727,11 @@ namespace HondaSensorChecker
             btnWorkOrderNok.Enabled = true;
 
             var raw = (txtWorkOrderNumber.Text ?? string.Empty).Trim().ToUpperInvariant();
-            if (raw.Length != 13 || raw[0] != 'O' || _accChangeoverInProgress)
+            if (_accPartTypeDataInProgress ||
+                !WorkOrderRules.TryNormalizeScannedLabel(raw, out var workOrderNumber))
                 return;
 
-            var workOrderNumber = raw[1..];
-            if (!await TryPerformAccWorkOrderChangeoverAsync(workOrderNumber))
+            if (!await TryLoadAccPartTypeDataAsync(workOrderNumber))
             {
                 txtWorkOrderNumber.Enabled = true;
                 txtWorkOrderNumber.SelectAll();

@@ -1,6 +1,6 @@
 # Honda Sensor Checker
 
-Aplicação Windows para controlar a montagem e a expedição de caixas de sensores Honda. O sistema relaciona cada sensor à Work Order SAP, ao produto, à SupplierBox de origem, à caixa ZF de destino e ao operador responsável. A integração ACC usa `PartTypeList` e `ChangeModel` para o changeover da Work Order e `Load`/`Unload` para cada sensor.
+Aplicação Windows para controlar a montagem e a expedição de caixas de sensores Honda. O sistema relaciona cada sensor à Work Order SAP, ao produto, à SupplierBox de origem, à caixa ZF de destino e ao operador responsável. A integração ACC usa `PartTypeList` e `PartTypeData` para selecionar e configurar o Part Number da Work Order e `Load`/`Unload` para cada sensor.
 
 Este documento serve como manual para Operação, Manutenção e Engenharia e descreve o comportamento implementado no código atual.
 
@@ -22,7 +22,7 @@ O fluxo principal é:
 
 1. Identificar automaticamente o operador pelo usuário do Windows.
 2. Ler a Work Order e localizar no `PartTypeList` a descrição que contém seu número sem o prefixo `O`.
-3. Executar `ChangeModel` com o `PartTypeID` encontrado.
+3. Executar `PartTypeData` com o `PartTypeID` encontrado para configurar o ACC.
 4. Validar o part number final e selecionar a quantidade da caixa ZF.
 5. Ler a etiqueta da SupplierBox.
 6. Travar o produto para impedir mistura de part numbers na mesma caixa ZF.
@@ -77,11 +77,11 @@ Ao sair do campo, inclusive após pressionar `Enter`, a aplicação:
 1. Remove o `O` inicial.
 2. Executa `PartTypeList` na estação configurada.
 3. Procura em `PartDesc`/Description um item que contenha o número da Work Order.
-4. Exige exatamente uma correspondência para evitar um changeover ambíguo.
-5. Executa `ChangeModel` com o `PartTypeID` encontrado.
+4. Exige exatamente uma correspondência para evitar a seleção ambígua de um `PartTypeID`.
+5. Executa `PartTypeData` com o `PartTypeID` encontrado.
 6. Guarda o `PartTypeID` e a descrição selecionada para os ciclos dos sensores.
 
-Se nenhuma ordem coincidir, se mais de uma descrição coincidir ou se o `ChangeModel` falhar, os próximos campos permanecem bloqueados e a Work Order precisa ser corrigida ou relida.
+Se nenhuma ordem coincidir, se mais de uma descrição coincidir ou se o `PartTypeData` falhar, os próximos campos permanecem bloqueados e a Work Order precisa ser corrigida ou relida.
 
 ### Work Order já conhecida
 
@@ -168,12 +168,12 @@ Clique no botão verde `✓` da seção de logística.
 
 Na confirmação, a aplicação:
 
-1. Confirma que o changeover ACC da Work Order está carregado.
+1. Confirma que o `PartTypeData` da Work Order foi carregado no ACC.
 2. Compara o PartNumber ZF da SupplierBox com o produto local.
 3. Trava o produto durante toda a montagem da caixa ZF.
 4. Cria a caixa ZF em andamento e libera a leitura dos sensores.
 
-O botão da logística não executa `PartTypeList` nem altera o `PartTypeID`. Se o changeover da Work Order estiver ausente ou não corresponder à ordem corrente, a leitura dos sensores permanecerá bloqueada.
+O botão da logística não executa `PartTypeList`, `PartTypeData` nem altera o `PartTypeID`. Se a configuração ACC da Work Order estiver ausente ou não corresponder à ordem corrente, a leitura dos sensores permanecerá bloqueada.
 
 ## 6. Ler os sensores
 
@@ -212,7 +212,7 @@ Se o ACC falhar, a reserva da SupplierBox é restaurada e o sensor não é grava
 
 Quando o painel estiver vermelho e começar com `NOK`, clique no próprio painel de resultado para repetir a etapa que realmente falhou.
 
-- falha no `PartTypeList`, `ChangeModel` ou changeover: retorna para `txtWorkOrderNumber`;
+- falha no `PartTypeList`, `PartTypeData` ou configuração da Work Order: retorna para `txtWorkOrderNumber`;
 - falha de validação ou `Load/Unload` de um sensor: retorna para `txtComponentSerial`, desde que todo o contexto do processo ainda seja válido;
 - contexto incompleto: bloqueia a leitura do sensor e retorna para a Work Order.
 
@@ -246,7 +246,7 @@ Regras obrigatórias:
 - a nova SupplierBox deve pertencer ao mesmo produto da caixa ZF em andamento;
 - não é permitido alterar o part number;
 - o produto e o `PartTypeID` permanecem travados;
-- a troca não executa um novo changeover;
+- a troca não executa um novo `PartTypeData`;
 - apenas a SupplierBox de origem e o saldo corrente são alterados.
 
 Se o saldo chegar a zero durante a produção, o programa pergunta se ainda existem sensores fisicamente na caixa:
@@ -300,7 +300,7 @@ Use **CONTINUAR PROCESSO** somente na tela inicial, antes de iniciar outra Work 
 1. Selecione uma caixa marcada como `Em andamento`.
 2. Confirme a seleção.
 3. A aplicação recuperará Work Order, produto, meta e sensores já lidos.
-4. Antes de restaurar o processo, o sistema procura a Work Order no `PartTypeList` e executa novamente o `ChangeModel`.
+4. Antes de restaurar o processo, o sistema procura a Work Order no `PartTypeList` e executa novamente o `PartTypeData`.
 5. Leia uma SupplierBox válida e confirme a logística para continuar.
 
 As opções são mostradas no formato:
@@ -317,7 +317,7 @@ Se a aplicação for fechada sem usar **INTERROMPER PROCESSO**, a caixa continua
 
 1. identifica a caixa ativa mais recente;
 2. recupera Work Order, produto, meta, sensores e contador;
-3. executa novamente o changeover da Work Order no ACC;
+3. executa novamente o `PartTypeData` da Work Order no ACC;
 4. recupera a SupplierBox que estava em uso e recompõe o saldo operacional;
 5. libera a leitura do próximo sensor.
 
@@ -347,6 +347,16 @@ A consulta mostra:
 4. Selecione uma HU e clique em **ABRIR COMPONENTES**, ou dê um duplo clique na linha.
 
 A primeira tela mostra somente caixas finalizadas, com HU `1J...`, lote, quantidade de componentes, PartNumber final e usuário responsável pela caixa. A tela de detalhes mostra todos os sensores vinculados à HU, incluindo data e hora, usuário do scan, SupplierBox e status.
+
+### Formatos válidos de Work Order
+
+| Etiqueta | Tipo | Uso |
+|---|---|---|
+| `OD###############` | Dummy | Casos especiais autorizados pelo time de IT, como peças reclamadas pelo cliente |
+| `O11##########` | Work Order | Processo normal de produção |
+| `O12##########` | Work Order Rework | Peças que passaram por retrabalho |
+
+Cada `#` representa um dígito. A aplicação remove somente a primeira letra `O` antes de gravar a ordem no banco e antes de procurar o valor na `Description` do `PartTypeList`. Assim, por exemplo, `O12##########` é tratado internamente como `12##########`.
 
 ---
 
@@ -378,7 +388,7 @@ A estação precisa de:
 }
 ```
 
-A mesma `Station` é usada por `PartTypeList`, `ChangeModel`, `Load` e `Unload`.
+A mesma `Station` é usada por `PartTypeList`, `PartTypeData`, `Load` e `Unload`.
 
 Após alterar o arquivo, reinicie a aplicação. As configurações são carregadas durante a criação do processo.
 
@@ -392,7 +402,7 @@ Em uma compilação `Debug`, a Work Order de teste abaixo ativa o bypass do ACC:
 O012345678912
 ```
 
-Nesse modo, o sistema mantém as validações e o fluxo local, mas não envia `PartTypeList`, `ChangeModel`, `Load` ou `Unload` ao ACC. A ativação e cada ciclo de sensor ignorado são registrados no log como eventos de nível `Warning`.
+Nesse modo, o sistema mantém as validações e o fluxo local, mas não envia `PartTypeList`, `PartTypeData`, `Load` ou `Unload` ao ACC. A ativação e cada ciclo de sensor ignorado são registrados no log como eventos de nível `Warning`.
 
 Para tornar o ambiente de teste evidente, compilações `Debug` exibem a palavra **DEBUG**, em vermelho, ao lado do contador de sensores.
 
@@ -467,12 +477,12 @@ Confira todos os campos de `Acc` no `appsettings.json`. IP vazio, porta fora de 
 
 ### Work Order possui múltiplas correspondências
 
-Mais de um `PartDesc` contém o mesmo número. O sistema bloqueia o changeover para não selecionar um `PartTypeID` arbitrariamente. Corrija o cadastro no ACC.
+Mais de um `PartDesc` contém o mesmo número. O sistema bloqueia o `PartTypeData` para não selecionar um `PartTypeID` arbitrariamente. Corrija o cadastro no ACC.
 
 ### `NOK ACC` durante sensor
 
 - verifique rede e serviço ACC;
-- confirme que o changeover da Work Order foi concluído;
+- confirme que o `PartTypeData` da Work Order foi concluído;
 - confira a mensagem técnica exibida e o log;
 - não force gravações diretamente no banco;
 - após corrigir a causa, clique no painel NOK e releia o sensor.
@@ -481,7 +491,7 @@ Mais de um `PartDesc` contém o mesmo número. O sistema bloqueia o changeover p
 
 - volte ao campo da Work Order e provoque novamente sua validação;
 - confirme que a Description do `PartTypeList` contém a ordem;
-- em uma retomada, selecione novamente a caixa para repetir o changeover.
+- em uma retomada, selecione novamente a caixa para repetir o `PartTypeData`.
 
 ### Sensor duplicado
 
@@ -527,7 +537,7 @@ Eventos registrados incluem:
 - criação de Work Order;
 - criação, alteração e exclusão de produtos ou usuários;
 - criação de SupplierBox;
-- consulta e changeover da Work Order no ACC, com sucesso ou falha;
+- consulta e `PartTypeData` da Work Order no ACC, com sucesso ou falha;
 - `Load/Unload` ACC bem-sucedido ou com falha;
 - solicitação e confirmação de troca de SupplierBox;
 - zeragem e uso além do saldo;
@@ -667,18 +677,18 @@ Consequências:
 
 ### Changeover pela Work Order
 
-No evento `Leave` de `txtWorkOrderNumber`:
+No evento `Leave` de `txtWorkOrderNumber`, depois de validar um dos três formatos aceitos:
 
 ```text
-Etiqueta: O123456789012
-Valor procurado: 123456789012
+Etiqueta normal: O11##########
+Valor procurado: 11##########
 Comando: PartTypeList(Station, ProductType, DllVersion)
 Filtro: PartDesc contém o número da Work Order
 Resultado exigido: exatamente uma correspondência
-Comando de troca: ChangeModel(Station, ProductType, DllVersion, PartTypeID)
+Comando de configuração: PartTypeData(Station, ProductType, DllVersion, PartTypeID)
 ```
 
-O `PartTypeID` e o `PartDesc` escolhido ficam somente em memória. O botão da SupplierBox apenas verifica que a descrição carregada continua correspondendo à Work Order atual. Ao retomar uma caixa após reiniciar a aplicação, `PartTypeList` e `ChangeModel` são executados novamente antes de restaurar o processo.
+O `PartTypeID`, o `PartDesc` escolhido e o retorno de `PartTypeData` ficam somente em memória. O comando `PartTypeData` baixa os parâmetros do Part Number e configura o ACC com o modelo em produção. O botão da SupplierBox apenas verifica que a descrição carregada continua correspondendo à Work Order atual. Ao retomar uma caixa após reiniciar a aplicação, `PartTypeList` e `PartTypeData` são executados novamente antes de restaurar o processo.
 
 ### Ciclo do sensor
 
@@ -778,7 +788,7 @@ Antes de liberar uma versão:
 - confirme os parâmetros do ACC do ambiente destino;
 - verifique a presença da DLL ACC;
 - faça backup do banco da estação;
-- teste uma Work Order válida no `PartTypeList` e o respectivo `ChangeModel`;
+- teste uma Work Order válida no `PartTypeList` e o respectivo `PartTypeData`;
 - teste `Load/Unload` em ambiente autorizado;
 - teste retomada de processo;
 - teste troca de SupplierBox do mesmo produto e rejeição de produto diferente;
@@ -943,7 +953,7 @@ O ACC é concluído antes da gravação final do sensor no SQLite. Se houver fal
 - [ ] `ZF.ACCComm.dll` presente na saída.
 - [ ] Conectividade TCP com o ACC validada.
 - [ ] `PartTypeList` encontra exatamente uma Description contendo a Work Order sem `O`.
-- [ ] `ChangeModel` conclui com o `PartTypeID` encontrado.
+- [ ] `PartTypeData` conclui com o `PartTypeID` encontrado.
 - [ ] `Load/Unload` validados com a estação `10.1`.
 - [ ] Leitura do sensor associada ao handler correto.
 - [ ] Troca de SupplierBox rejeita produto diferente.

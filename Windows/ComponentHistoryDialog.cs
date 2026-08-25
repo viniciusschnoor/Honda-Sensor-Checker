@@ -67,7 +67,7 @@ namespace HondaSensorChecker
             var zfBox = _unitOfWork.ZfBoxes.GetById(sensor.ZfBoxId);
             var scanOperator = _unitOfWork.Operators.GetById(sensor.OperatorId);
 
-            var workOrderNumber = workOrder?.WorkOrderNumber ?? "N/D";
+            var workOrderNumber = WorkOrderRules.FormatStoredNumber(workOrder?.WorkOrderNumber);
             var supplierNumber = supplierBox?.UniqueNumber ?? "N/D";
             var zfNumber = string.IsNullOrWhiteSpace(zfBox?.UniqueNumber) ? "(em andamento)" : zfBox.UniqueNumber;
             var status = sensor.InProgress ? "Em andamento" : "Finalizado";

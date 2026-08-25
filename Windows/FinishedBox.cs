@@ -109,11 +109,8 @@ namespace HondaSensorChecker
 
             var text = (txtWorkOrder.Text ?? string.Empty).Trim().ToUpper();
 
-            // Expected: 'O' + 12 chars
-            if (text.Length == 13 && text[0] == 'O')
+            if (WorkOrderRules.TryNormalizeScannedLabel(text, out var workOrderNumber))
             {
-                var wo = text.Substring(1, 12);
-
                 var woDb = _unitOfWork.SapWorkOrders.GetById(_workOrderId);
                 if (woDb == null)
                 {
@@ -123,7 +120,10 @@ namespace HondaSensorChecker
                     return;
                 }
 
-                if (string.Equals(woDb.WorkOrderNumber, wo, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(
+                    woDb.WorkOrderNumber,
+                    workOrderNumber,
+                    StringComparison.OrdinalIgnoreCase))
                 {
                     txtWorkOrder.Enabled = false;
                     txtBatch.Enabled = true;
@@ -139,7 +139,11 @@ namespace HondaSensorChecker
                 return;
             }
 
-            MessageBox.Show("LEITURA INCORRETA", "ETIQUETA FINAL", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(
+                $"LEITURA INCORRETA\n\nFORMATOS ACEITOS:\n{WorkOrderRules.ExpectedFormats}",
+                "ETIQUETA FINAL",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
             txtWorkOrder.Clear();
             txtWorkOrder.Focus();
         }

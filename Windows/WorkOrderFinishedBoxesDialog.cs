@@ -35,10 +35,11 @@ namespace HondaSensorChecker
             if (_unitOfWork is null)
                 return;
 
-            var workOrderNumber = NormalizeWorkOrder(txtWorkOrder.Text);
-            if (string.IsNullOrWhiteSpace(workOrderNumber))
+            if (!WorkOrderRules.TryNormalizeForLookup(txtWorkOrder.Text, out var workOrderNumber))
             {
-                MessageBox.Show("Informe a Work Order.", "Consultar caixas finalizadas",
+                MessageBox.Show(
+                    $"Work Order inválida.\n\nFormatos aceitos:\n{WorkOrderRules.ExpectedFormats}",
+                    "Consultar caixas finalizadas",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 txtWorkOrder.Focus();
                 return;
@@ -108,12 +109,6 @@ namespace HondaSensorChecker
 
             using var dialog = new FinishedBoxDetailsDialog(_unitOfWork, zfBoxId);
             dialog.ShowDialog(this);
-        }
-
-        private static string NormalizeWorkOrder(string? value)
-        {
-            var normalized = (value ?? string.Empty).Trim().ToUpperInvariant();
-            return normalized.StartsWith('O') ? normalized[1..] : normalized;
         }
 
         internal static string FormatHu(string? value)
