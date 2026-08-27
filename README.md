@@ -15,6 +15,8 @@ Este documento serve como manual oficial para Operação, Manutenção e Engenha
 
 > Sempre que houver diferença entre uma cópia impressa deste manual e o comportamento de uma versão instalada, preserve o processo, registre a versão do executável e acione a Engenharia. Não corrija rastreabilidade diretamente no banco sem análise e backup.
 
+Para correções excepcionais no SQLite, consulte o [Manual de diagnóstico e correção do banco](docs/manual-manutencao-banco.md). Ele contém consultas, pré-condições, transações, auditoria e os casos que exigem reconciliação com o ACC.
+
 ## Sumário
 
 - [Visão geral](#visão-geral)
@@ -29,6 +31,7 @@ Este documento serve como manual oficial para Operação, Manutenção e Engenha
 - [Referência de métodos](#referência-de-métodos)
 - [Testes de aceitação](#testes-de-aceitação)
 - [Controle de mudanças](#controle-de-mudanças)
+- [Manual de manutenção do banco de dados](docs/manual-manutencao-banco.md)
 
 ## Visão geral
 

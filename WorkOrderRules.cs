@@ -30,11 +30,11 @@ namespace HondaSensorChecker
             }
 
             if (label.Length == 13 &&
-                (label.StartsWith("O11", StringComparison.Ordinal) ||
-                 label.StartsWith("O12", StringComparison.Ordinal)) &&
+                (label.StartsWith("O011", StringComparison.Ordinal) ||
+                 label.StartsWith("O012", StringComparison.Ordinal)) &&
                 ContainsOnlyDigits(label, 1))
             {
-                workOrderNumber = label[1..];
+                workOrderNumber = label[2..];
                 return true;
             }
 
